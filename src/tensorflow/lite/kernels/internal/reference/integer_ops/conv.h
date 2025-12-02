@@ -17,6 +17,8 @@ limitations under the License.
 
 #include <algorithm>
 
+#include "cfu.h"
+#include "playground_util/print_params.h"
 #include "tensorflow/lite/kernels/internal/common.h"
 #include "tensorflow/lite/kernels/internal/portable_tensor_utils.h"
 
@@ -31,8 +33,10 @@ inline void ConvPerChannel(
     const int8_t* filter_data, const RuntimeShape& bias_shape,
     const int32_t* bias_data, const RuntimeShape& output_shape,
     int8_t* output_data) {
+  // print_conv_params(params, input_shape, filter_shape, output_shape);
   // Get parameters.
   const int32_t input_offset = params.input_offset;  // r = s(q - Z)
+  cfu_op0(2, input_offset, 0);
   const int stride_width = params.stride_width;
   const int stride_height = params.stride_height;
   const int dilation_width_factor = params.dilation_width_factor;
@@ -75,7 +79,10 @@ inline void ConvPerChannel(
         const int in_x_origin = (out_x * stride_width) - pad_width;
         for (int out_channel = 0; out_channel < output_depth; ++out_channel) {
           auto group = out_channel / filters_per_group;
-          int32_t acc = 0;
+          // int32_t acc = 0;
+          int32_t acc = cfu_op0(1, 0, 0);
+          int32_t input_val = 0;
+          int32_t filter_val = 0;
           for (int filter_y = 0; filter_y < filter_height; ++filter_y) {
             const int in_y = in_y_origin + dilation_height_factor * filter_y;
             for (int filter_x = 0; filter_x < filter_width; ++filter_x) {
@@ -91,30 +98,31 @@ inline void ConvPerChannel(
               }
 
               for (int in_channel = 0; in_channel < filter_input_depth;
-                   ++in_channel) {
-                int32_t input_val =
-                    input_data[Offset(input_shape, batch, in_y, in_x,
-                                      in_channel + group * filter_input_depth)];
-                int32_t filter_val = filter_data[Offset(
-                    filter_shape, out_channel, filter_y, filter_x, in_channel)];
-                // Accumulate with 32 bits accumulator.
-                // In the nudging process during model quantization, we force
-                // real value of 0.0 be represented by a quantized value. This
-                // guarantees that the input_offset is a int8_t, even though
-                // it is represented using int32_t. int32_t += int8_t *
-                // (int8_t - int8_t) so the highest value we can get from each
-                // accumulation is [-127, 127] * ([-128, 127] -
-                // [-128, 127]), which is [-32512, 32512]. log2(32512)
-                // = 14.98, which means we can accumulate at least 2^16
-                // multiplications without overflow. The accumulator is
-                // applied to a filter so the accumulation logic will hold as
-                // long as the filter size (filter_y * filter_x * in_channel)
-                // does not exceed 2^16, which is the case in all the models
-                // we have seen so far.
-                // TODO(b/174275578): Add a check to make sure the
-                // accumulator depth is smaller than 2^16.
-                acc += filter_val * (input_val + input_offset);
+                   in_channel += 4) {
+                if ((in_channel + 4) <= filter_input_depth) {
+                  input_val = *(int32_t*)(&input_data[Offset(
+                      input_shape, batch, in_y, in_x,
+                      in_channel + group * filter_input_depth)]);
+                  filter_val = *(int32_t*)(&filter_data[Offset(
+                      filter_shape, out_channel, filter_y, filter_x,
+                      in_channel)]);
+                  cfu_op0(0, input_val, filter_val);
+                } else {
+                  for (int i = in_channel; i < filter_input_depth; i++) {
+                    input_val = (static_cast<int32_t>(input_data[Offset(
+                                     input_shape, batch, in_y, in_x,
+                                     i + group * filter_input_depth)]) &
+                                 0xFF);
+                    filter_val =
+                        (static_cast<int32_t>(
+                             filter_data[Offset(filter_shape, out_channel,
+                                                filter_y, filter_x, i)]) &
+                         0xFF);
+                    cfu_op0(0, input_val, filter_val);
+                  }
+                }
               }
+              acc = cfu_op0(0, 0, 0);
             }
           }
 

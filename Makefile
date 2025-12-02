@@ -46,7 +46,9 @@ DEFINES += SILENT_FIRMWARE
 
 # Uncomment to include all TFLM examples (pdti8, micro_speech, magic_wand)
 #DEFINES += INCLUDE_ALL_TFLM_EXAMPLES
-
+export EXTRA_LITEX_ARGS
+EXTRA_LITEX_ARGS += --variant=a7-100
+EXTRA_LITEX_ARGS += "--cpu-variant=perf+cfu"
 # Uncomment this line to include the ASCII animated donut demo.
 # DEFINES += DONUT_DEMO
 

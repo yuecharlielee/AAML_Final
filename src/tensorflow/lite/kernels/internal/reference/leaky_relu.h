@@ -17,6 +17,8 @@ limitations under the License.
 
 #include <algorithm>
 #include <limits>
+#include <stdio.h>
+#include <cstring>
 
 #include "tensorflow/lite/kernels/internal/common.h"
 
@@ -32,6 +34,7 @@ inline void LeakyRelu(const tflite::LeakyReluParams& params,
     // Note that alpha might be > 1 or < 0, so we don't use std::max here.
     output_data[i] = val > 0 ? val : val * params.alpha;
   }
+
 }
 
 template <typename T>
@@ -43,6 +46,13 @@ inline void QuantizeLeakyRelu(const LeakyReluParams& params,
   const int flat_size = MatchingFlatSize(input_shape, output_shape);
   static const int32_t quantized_min = std::numeric_limits<T>::min();
   static const int32_t quantized_max = std::numeric_limits<T>::max();
+
+  float alpha_value = params.alpha;
+  uint32_t alpha_bits;
+  std::memcpy(&alpha_bits, &alpha_value, sizeof(float));
+
+  printf("QuantizeLeakyRelu: alpha_bits=%08lx\n", alpha_bits);
+
   for (int i = 0; i < flat_size; ++i) {
     const int32_t input_value = input_data[i] - params.input_offset;
     int32_t unclamped_output;
