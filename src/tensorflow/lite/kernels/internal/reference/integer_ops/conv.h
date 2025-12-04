@@ -17,6 +17,7 @@ limitations under the License.
 
 #include <algorithm>
 
+#include <cstdio>
 #include "cfu.h"
 #include "playground_util/print_params.h"
 #include "tensorflow/lite/kernels/internal/common.h"
@@ -72,6 +73,9 @@ inline void ConvPerChannel(
   const int filters_per_group = output_depth / groups;
   const int output_height = output_shape.Dims(1);
   const int output_width = output_shape.Dims(2);
+
+
+
   for (int batch = 0; batch < batches; ++batch) {
     for (int out_y = 0; out_y < output_height; ++out_y) {
       const int in_y_origin = (out_y * stride_height) - pad_height;
@@ -80,7 +84,10 @@ inline void ConvPerChannel(
         for (int out_channel = 0; out_channel < output_depth; ++out_channel) {
           auto group = out_channel / filters_per_group;
           // int32_t acc = 0;
+          // printf("Computing output for batch=%d, out_y=%d, out_x=%d, out_channel=%d\n",
+          //        batch, out_y, out_x, out_channel);
           int32_t acc = cfu_op0(1, 0, 0);
+          
           int32_t input_val = 0;
           int32_t filter_val = 0;
           for (int filter_y = 0; filter_y < filter_height; ++filter_y) {
@@ -100,14 +107,25 @@ inline void ConvPerChannel(
               for (int in_channel = 0; in_channel < filter_input_depth;
                    in_channel += 4) {
                 if ((in_channel + 4) <= filter_input_depth) {
-                  input_val = *(int32_t*)(&input_data[Offset(
-                      input_shape, batch, in_y, in_x,
-                      in_channel + group * filter_input_depth)]);
-                  filter_val = *(int32_t*)(&filter_data[Offset(
-                      filter_shape, out_channel, filter_y, filter_x,
-                      in_channel)]);
+                  input_val = 0;
+                  filter_val = 0;
+                  for (int b = 0; b < 4; ++b) {
+                    int input_idx = Offset(input_shape, batch, in_y, in_x,
+                                          in_channel + b + group * filter_input_depth);
+                    int filter_idx = Offset(filter_shape, out_channel, filter_y,
+                                           filter_x, in_channel + b);
+                    input_val |= (static_cast<int32_t>(
+                                      static_cast<uint8_t>(input_data[input_idx])) &
+                                  0xFF)
+                                 << (b * 8);
+                    filter_val |= (static_cast<int32_t>(
+                                       static_cast<uint8_t>(filter_data[filter_idx])) &
+                                   0xFF)
+                                  << (b * 8);
+                  }
                   cfu_op0(0, input_val, filter_val);
                 } else {
+                  // Handle remaining channels (less than 4)
                   for (int i = in_channel; i < filter_input_depth; i++) {
                     input_val = (static_cast<int32_t>(input_data[Offset(
                                      input_shape, batch, in_y, in_x,
@@ -202,6 +220,8 @@ inline void ConvPerChannel(
   const int filters_per_group = output_depth / groups;
   const int output_height = output_shape.Dims(1);
   const int output_width = output_shape.Dims(2);
+
+
   for (int batch = 0; batch < batches; ++batch) {
     for (int out_y = 0; out_y < output_height; ++out_y) {
       const int in_y_origin = (out_y * stride_height) - pad_height;
