@@ -22,6 +22,7 @@ limitations under the License.
 #include "playground_util/print_params.h"
 #include "tensorflow/lite/kernels/internal/common.h"
 #include "tensorflow/lite/kernels/internal/portable_tensor_utils.h"
+#include "perf.h"
 
 namespace tflite {
 namespace reference_integer_ops {
@@ -36,8 +37,11 @@ inline void ConvPerChannel(
     int8_t* output_data) {
   // print_conv_params(params, input_shape, filter_shape, output_shape);
   // Get parameters.
+
+  // perf_enable_counter(6);
   const int32_t input_offset = params.input_offset;  // r = s(q - Z)
   cfu_op0(2, input_offset, 0);
+ 
   const int stride_width = params.stride_width;
   const int stride_height = params.stride_height;
   const int dilation_width_factor = params.dilation_width_factor;
@@ -45,7 +49,6 @@ inline void ConvPerChannel(
   const int pad_width = params.padding_values.width;
   const int pad_height = params.padding_values.height;
   const int32_t output_offset = params.output_offset;
-
   // Set min and max value of the output.
   const int32_t output_activation_min = params.quantized_activation_min;
   const int32_t output_activation_max = params.quantized_activation_max;
@@ -158,6 +161,8 @@ inline void ConvPerChannel(
       }
     }
   }
+
+  // perf_disable_counter(6);
 }
 
 inline void ConvPerChannelWithPackedInt4Weights(
