@@ -92,8 +92,8 @@ inline void ConvPerChannel(
   int K = filter_height * filter_width * filter_input_depth;
 
 
-  const int TILE_SIZE = 16; 
-  int32_t tile_acc[16][16]; 
+  const int TILE_SIZE = 32; 
+  int32_t tile_acc[32][32]; 
 
 
   printf("Starting Zero-Buffer GEMM M=%d, N=%d, K=%d\n", M, N, K);
