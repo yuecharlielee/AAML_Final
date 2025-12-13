@@ -28,9 +28,9 @@ module TPU(
 input clk;
 input rst_n;
 input            in_valid;
-input [11:0]      K;
-input [11:0]      M;
-input [11:0]      N;
+input [15:0]      K;
+input [15:0]      M;
+input [15:0]      N;
 output reg       busy;
 
 output reg          A_wr_en;
@@ -43,9 +43,9 @@ output reg [15:0]   B_index;
 output reg [31:0]   B_data_in;
 input  [31:0]       B_data_out;
 
-output reg          C_wr_en;
-output reg [15:0]   C_index;
-output reg [127:0]  C_data_in;
+(* mark_debug = "true" *) output reg          C_wr_en;
+(* mark_debug = "true" *) output reg [15:0]   C_index;
+(* mark_debug = "true" *) output reg [127:0]  C_data_in;
 input  [127:0]      C_data_out;
 
 input [31:0]       inputoffset;
@@ -85,14 +85,14 @@ systolic_array SA (
     .inputoffset(inputoffset)
 );
 
-reg [11:0] M_reg, N_reg, K_reg;
-reg [11:0] tile_m, tile_n, tile_k;
-reg [11:0] max_tile_m, max_tile_n, max_tile_k;
+reg [15:0] M_reg, N_reg, K_reg;
+reg [15:0] tile_m, tile_n, tile_k;
+reg [15:0] max_tile_m, max_tile_n, max_tile_k;
 
-wire [127:0] c_row0 = c_out[0];
-wire [127:0] c_row1 = c_out[1];
-wire [127:0] c_row2 = c_out[2];
-wire [127:0] c_row3 = c_out[3];
+(* mark_debug = "true" *) wire [127:0] c_row0 = c_out[0];
+(* mark_debug = "true" *) wire [127:0] c_row1 = c_out[1];
+(* mark_debug = "true" *) wire [127:0] c_row2 = c_out[2];
+(* mark_debug = "true" *) wire [127:0] c_row3 = c_out[3];
 
 integer i, j;
 
@@ -103,7 +103,7 @@ localparam WRITEBACK = 3'd3;
 localparam DONE = 3'd4;
 
 reg [3:0] state, next_state;
-reg [11:0] load_cnt, calc_cnt, wb_cnt;
+reg [15:0] load_cnt, calc_cnt, wb_cnt;
 
 // wire [15:0] A_addr = tile_k * 4 * max_tile_m + tile_m * 4 + load_cnt;
 // wire [15:0] B_addr = tile_k * 4 * max_tile_n + tile_n * 4 + load_cnt;  
