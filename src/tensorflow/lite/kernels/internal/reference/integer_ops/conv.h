@@ -15,14 +15,14 @@ limitations under the License.
 #ifndef TENSORFLOW_LITE_KERNELS_INTERNAL_REFERENCE_INTEGER_OPS_CONV_H_
 #define TENSORFLOW_LITE_KERNELS_INTERNAL_REFERENCE_INTEGER_OPS_CONV_H_
 
+#include <stdio.h>
+
 #include <algorithm>
 
-#include <cstdio>
 #include "cfu.h"
-#include "playground_util/print_params.h"
+#include "perf.h"
 #include "tensorflow/lite/kernels/internal/common.h"
 #include "tensorflow/lite/kernels/internal/portable_tensor_utils.h"
-#include "perf.h"
 
 namespace tflite {
 namespace reference_integer_ops {
@@ -35,13 +35,9 @@ inline void ConvPerChannel(
     const int8_t* filter_data, const RuntimeShape& bias_shape,
     const int32_t* bias_data, const RuntimeShape& output_shape,
     int8_t* output_data) {
-  // print_conv_params(params, input_shape, filter_shape, output_shape);
+  perf_enable_counter(6);
   // Get parameters.
-
-  // perf_enable_counter(6);
   const int32_t input_offset = params.input_offset;  // r = s(q - Z)
-  cfu_op0(2, input_offset, 0);
- 
   const int stride_width = params.stride_width;
   const int stride_height = params.stride_height;
   const int dilation_width_factor = params.dilation_width_factor;
@@ -49,7 +45,23 @@ inline void ConvPerChannel(
   const int pad_width = params.padding_values.width;
   const int pad_height = params.padding_values.height;
   const int32_t output_offset = params.output_offset;
+
+  // printf("ConvPerChannel<%d>: batches=%ld, inH=%ld, inW=%ld, inD=%ld,
+  // outH=%ld, outW=%ld, outD=%ld, fH=%ld, fW=%ld, fInD=%ld\n",
+  //        static_cast<int>(sizeof(int32_t)), input_shape.Dims(0),
+  //        input_shape.Dims(1), input_shape.Dims(2), input_shape.Dims(3),
+  //        output_shape.Dims(1), output_shape.Dims(2), output_shape.Dims(3),
+  //        filter_shape.Dims(1), filter_shape.Dims(2),
+  //        filter_shape.Dims(3));
+
+  // printf("  stride_width=%d, stride_height=%d\n", stride_width,
+  // stride_height); printf("  dilation_width_factor=%d,
+  // dilation_height_factor=%d\n",
+  //        dilation_width_factor, dilation_height_factor);
+  // printf("  pad_width=%d, pad_height=%d\n", pad_width, pad_height);
+
   // Set min and max value of the output.
+
   const int32_t output_activation_min = params.quantized_activation_min;
   const int32_t output_activation_max = params.quantized_activation_max;
 
@@ -71,98 +83,130 @@ inline void ConvPerChannel(
   const int filter_height = filter_shape.Dims(1);
   const int filter_width = filter_shape.Dims(2);
   const int filter_input_depth = filter_shape.Dims(3);
-  const int groups = input_depth / filter_input_depth;
   TFLITE_DCHECK_EQ(input_depth % filter_input_depth, 0);
-  const int filters_per_group = output_depth / groups;
+  const int filters_per_group = output_depth;
   const int output_height = output_shape.Dims(1);
   const int output_width = output_shape.Dims(2);
 
+  int M = output_depth;
+  int N = output_height * output_width;
+  int K = filter_height * filter_width * filter_input_depth;
 
+  printf("M=%d, N=%d, K=%d\n", M, N, K);
+
+  const int TILE_SIZE = 32;
+  
+
+  constexpr int MAX_K = 8000;
+  int16_t im2col_buf[TILE_SIZE][MAX_K];
+  int8_t filter_buf[MAX_K][TILE_SIZE];
+
+  int32_t tile_acc[32][32];
 
   for (int batch = 0; batch < batches; ++batch) {
-    for (int out_y = 0; out_y < output_height; ++out_y) {
-      const int in_y_origin = (out_y * stride_height) - pad_height;
-      for (int out_x = 0; out_x < output_width; ++out_x) {
-        const int in_x_origin = (out_x * stride_width) - pad_width;
-        for (int out_channel = 0; out_channel < output_depth; ++out_channel) {
-          auto group = out_channel / filters_per_group;
-          // int32_t acc = 0;
-          // printf("Computing output for batch=%d, out_y=%d, out_x=%d, out_channel=%d\n",
-          //        batch, out_y, out_x, out_channel);
-          int32_t acc = cfu_op0(1, 0, 0);
-          
-          int32_t input_val = 0;
-          int32_t filter_val = 0;
-          for (int filter_y = 0; filter_y < filter_height; ++filter_y) {
-            const int in_y = in_y_origin + dilation_height_factor * filter_y;
-            for (int filter_x = 0; filter_x < filter_width; ++filter_x) {
-              const int in_x = in_x_origin + dilation_width_factor * filter_x;
+    for (int m_base = 0; m_base < M; m_base += TILE_SIZE) {
+      int current_group = m_base / filters_per_group;
+      int group_start = current_group * filters_per_group;
+      int group_end = group_start + filters_per_group;
 
-              // Zero padding by omitting the areas outside the image.
-              const bool is_point_inside_image =
-                  (in_x >= 0) && (in_x < input_width) && (in_y >= 0) &&
-                  (in_y < input_height);
+      int max_tile_height_in_group = group_end - m_base;
 
-              if (!is_point_inside_image) {
-                continue;
-              }
 
-              for (int in_channel = 0; in_channel < filter_input_depth;
-                   in_channel += 4) {
-                if ((in_channel + 4) <= filter_input_depth) {
-                  input_val = 0;
-                  filter_val = 0;
-                  for (int b = 0; b < 4; ++b) {
-                    int input_idx = Offset(input_shape, batch, in_y, in_x,
-                                          in_channel + b + group * filter_input_depth);
-                    int filter_idx = Offset(filter_shape, out_channel, filter_y,
-                                           filter_x, in_channel + b);
-                    input_val |= (static_cast<int32_t>(
-                                      static_cast<uint8_t>(input_data[input_idx])) &
-                                  0xFF)
-                                 << (b * 8);
-                    filter_val |= (static_cast<int32_t>(
-                                       static_cast<uint8_t>(filter_data[filter_idx])) &
-                                   0xFF)
-                                  << (b * 8);
-                  }
-                  cfu_op0(0, input_val, filter_val);
-                } else {
-                  // Handle remaining channels (less than 4)
-                  for (int i = in_channel; i < filter_input_depth; i++) {
-                    input_val = (static_cast<int32_t>(input_data[Offset(
-                                     input_shape, batch, in_y, in_x,
-                                     i + group * filter_input_depth)]) &
-                                 0xFF);
-                    filter_val =
-                        (static_cast<int32_t>(
-                             filter_data[Offset(filter_shape, out_channel,
-                                                filter_y, filter_x, i)]) &
-                         0xFF);
-                    cfu_op0(0, input_val, filter_val);
-                  }
-                }
-              }
-              acc = cfu_op0(0, 0, 0);
+      int tile_height = std::min(TILE_SIZE, M - m_base);
+
+      tile_height = std::min(tile_height, max_tile_height_in_group);
+
+      for (int i = 0; i < tile_height; ++i) {
+        int out_channel = m_base + i;
+        int k = 0;
+        for (int filter_y = 0; filter_y < filter_height; ++filter_y) {
+          for (int filter_x = 0; filter_x < filter_width; ++filter_x) {
+            for (int in_channel = 0; in_channel < filter_input_depth;
+                 ++in_channel) {
+              int32_t filter_val = filter_data[Offset(
+                  filter_shape, out_channel, filter_y, filter_x, in_channel)];
+              filter_buf[k][i] = static_cast<int8_t>(filter_val);
+              k++;
             }
           }
+        }
+      }
 
-          if (bias_data) {
-            acc += bias_data[out_channel];
+      for (int n_base = 0; n_base < N; n_base += TILE_SIZE) {
+        int tile_width = std::min(TILE_SIZE, N - n_base);
+
+        auto group = m_base / filters_per_group;
+
+        for (int j = 0; j < tile_width; ++j) {
+          int n_curr = n_base + j;
+          int out_y = n_curr / output_width;
+          int out_x = n_curr % output_width;
+          int in_y_origin = (out_y * stride_height) - pad_height;
+          int in_x_origin = (out_x * stride_width) - pad_width;
+
+          int k = 0;
+          for (int filter_y = 0; filter_y < filter_height; ++filter_y) {
+            int in_y = in_y_origin + dilation_height_factor * filter_y;
+            for (int filter_x = 0; filter_x < filter_width; ++filter_x) {
+              int in_x = in_x_origin + dilation_width_factor * filter_x;
+              bool is_point_inside_image = (in_x >= 0) &&
+                                           (in_x < input_width) &&
+                                           (in_y >= 0) && (in_y < input_height);
+
+              for (int in_channel = 0; in_channel < filter_input_depth;
+                   ++in_channel) {
+                int16_t val = 0;  
+                if (is_point_inside_image) {
+                  int32_t input_val = input_data[Offset(
+                      input_shape, batch, in_y, in_x,
+                      in_channel + group * filter_input_depth)];
+                  val = static_cast<int8_t>(input_val) +
+                        static_cast<int8_t>(input_offset);
+                }
+                im2col_buf[j][k] = val;
+                k++;
+              }
+            }
           }
-          acc = MultiplyByQuantizedMultiplier(
-              acc, output_multiplier[out_channel], output_shift[out_channel]);
-          acc += output_offset;
-          acc = std::max(acc, output_activation_min);
-          acc = std::min(acc, output_activation_max);
-          output_data[Offset(output_shape, batch, out_y, out_x, out_channel)] =
-              static_cast<int8_t>(acc);
+        }
+
+        for (int i = 0; i < tile_height; ++i) {
+          for (int j = 0; j < tile_width; ++j) {
+            tile_acc[i][j] = 0;
+          }
+        }
+
+        for (int i = 0; i < tile_height; ++i) {
+          for (int j = 0; j < tile_width; ++j) {
+            for (int k = 0; k < K; ++k) {
+              tile_acc[i][j] += filter_buf[k][i] * im2col_buf[j][k];
+            }
+
+            int m_curr = m_base + i;
+            int n_curr = n_base + j;
+            int out_channel = m_curr;
+            int out_y = n_curr / output_width;
+            int out_x = n_curr % output_width;
+
+            if (bias_data) {
+              tile_acc[i][j] += bias_data[out_channel];
+            }
+
+            tile_acc[i][j] = MultiplyByQuantizedMultiplier(
+                tile_acc[i][j], output_multiplier[out_channel], output_shift[out_channel]);
+            tile_acc[i][j] += output_offset;
+            tile_acc[i][j] = std::max(tile_acc[i][j], output_activation_min);
+            tile_acc[i][j] = std::min(tile_acc[i][j], output_activation_max);
+
+            output_data[Offset(output_shape, batch, out_y, out_x,
+                               out_channel)] = static_cast<int8_t>(tile_acc[i][j]);
+          }
         }
       }
     }
   }
 
-  // perf_disable_counter(6);
+  perf_disable_counter(6);
 }
 
 inline void ConvPerChannelWithPackedInt4Weights(
@@ -226,6 +270,11 @@ inline void ConvPerChannel(
   const int output_height = output_shape.Dims(1);
   const int output_width = output_shape.Dims(2);
 
+  // printf("ConvPerChannel<%d>: batches=%d, inH=%d, inW=%d, inD=%d, outH=%d,
+  // outW=%d, outD=%d, fH=%d, fW=%d, fInD=%d\n",
+  //        static_cast<int>(sizeof(AccumScalar)), batches, input_height,
+  //        input_width, input_depth, output_height, output_width, output_depth,
+  //        filter_height, filter_width, filter_input_depth);
 
   for (int batch = 0; batch < batches; ++batch) {
     for (int out_y = 0; out_y < output_height; ++out_y) {
