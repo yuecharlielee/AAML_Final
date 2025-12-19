@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+`include "global_buffer_bram.v"
+
 
 module Cfu (
   input               cmd_valid,
@@ -26,13 +28,42 @@ module Cfu (
   input               clk
 );
 
+wire rst_n = ~reset;
+
+localparam ADDR_BITS = 14;
+localparam DATA_BITS = 8;
+localparam Tile_size = 32;
+
+reg [5:0] State, NextState;
+
+localparam IDLE = 6'd0,
+           PROCESS = 6'd1,
+           RESPOND = 6'd2;
+
+reg [Tile_size-1:0] wr_en_input;
+reg [ADDR_BITS-1:0] index_input;
+reg [DATA_BITS-1:0] data_in_input;
+wire [DATA_BITS-1:0] data_out_input [31:0];
+
+genvar i;
+generate
+    for (i = 0; i < 32; i = i + 1) begin : gbuff_instances
+        global_buffer_bram #(
+            .ADDR_BITS(ADDR_BITS),
+            .DATA_BITS(DATA_BITS)
+        ) gbuff_input(
+            .clk(clk),
+            .rst_n(rst_n),
+            .ram_en(1'b1),
+            .wr_en(wr_en_input[i]),
+            .index(index_input),
+            .data_in(data_in_input),
+            .data_out(data_out_input[i])
+        );
+    end
+endgenerate
 
 
-reg [1:0] State, NextState;
-
-localparam IDLE = 2'b00;
-localparam PROCESS = 2'b01;
-localparam RESPOND = 2'b10;
 
 
 always @(*) begin
@@ -53,8 +84,9 @@ always @(*) begin
     NextState = State;
     case (State)
         IDLE: begin
-            if (cmd_valid)
+            if (cmd_valid) begin
                 NextState = PROCESS;
+            end
         end
         PROCESS: begin
             NextState = RESPOND;
@@ -66,18 +98,67 @@ always @(*) begin
     endcase
 end
 
+always @(*) begin
+    if(State == PROCESS) begin
+        if(cmd_payload_function_id[9:3] == 0) begin
+            wr_en_input = 1'b1 << cmd_payload_inputs_1[31:16];
+            index_input = cmd_payload_inputs_1[15:0];
+            data_in_input = cmd_payload_inputs_0[7:0];
+        end
+        else if(cmd_payload_function_id[9:3] == 1) begin
+            wr_en_input = 0;
+            index_input = cmd_payload_inputs_1[15:0];
+            data_in_input = 0;
+        end
+        else begin
+            wr_en_input = 0;
+            index_input = 0;
+            data_in_input = 0;
+        end
+    end
+    else if(State == RESPOND) begin
+        wr_en_input = 0;
+        data_in_input = 0;
+        if(cmd_payload_function_id[9:3] == 1) begin
+            index_input = cmd_payload_inputs_1[15:0];
+        end
+        else begin
+            index_input = 0;
+        end
+        
+    end
+    else begin
+        wr_en_input = 0;
+        index_input = 0;
+        data_in_input = 0;
+    end
+end
+
 always @(posedge clk) begin
     if (reset) begin
+        rsp_payload_outputs_0 <= 0;
         rsp_valid <= 0;
     end
     else if(State == IDLE) begin
+        rsp_payload_outputs_0 <= 0;
         rsp_valid <= 0;
     end
     else if (State == PROCESS) begin
+        rsp_payload_outputs_0 <= 0;
         rsp_valid <= 0;
     end
     else if(State == RESPOND) begin
         rsp_valid <= 1;
+
+        if(cmd_payload_function_id[9:3] == 0) begin
+            rsp_payload_outputs_0 <= 0;
+        end
+        else if(cmd_payload_function_id[9:3] == 1) begin
+            rsp_payload_outputs_0 <= {24'b0, data_out_input[cmd_payload_inputs_0[15:0]][7:0]};
+        end
+        else begin
+            rsp_payload_outputs_0 <= 0;
+        end
     end
 end
 

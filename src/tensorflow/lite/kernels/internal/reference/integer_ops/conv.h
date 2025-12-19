@@ -99,7 +99,6 @@ inline void ConvPerChannel(
 
   constexpr int MAX_K = 8000;
   int8_t im2col_buf[TILE_SIZE][MAX_K];
-  // int8_t filter_buf[MAX_K][TILE_SIZE];
 
   int filter_row_index[256000];
   int filter_col_index[256000];
@@ -107,7 +106,6 @@ inline void ConvPerChannel(
   int filter_idx = 0;
 
   int32_t tile_acc[32][32];
-  // int32_t tile_golden_acc[32][32];
 
 
   for (int batch = 0; batch < batches; ++batch) {
@@ -181,32 +179,21 @@ inline void ConvPerChannel(
                   im2col_buf[j][k] = -input_offset;
                 }
                 
-                // cfu_op0(0, im2col_buf[j][k], k);
+                
+                cfu_op0(0, im2col_buf[j][k], (j << 16) | k);
                 k++;
               }
             }
           }
         }
         
-        //print filter_buf
-        // printf("\n");
-        // printf("Filter Buffer:\n");
-        // for (int i = 0; i < tile_height; ++i) {
-        //   for (int k = 0; k < K; ++k) {
-        //     printf("%d ", filter_buf[k][i]);
+        // for(int i = 0; i < tile_width; ++i){
+        //   for(int j = 0;j < K;j++){
+        //     if(static_cast<int8_t>(cfu_op0(1, i, j) & 0xff) != im2col_buf[i][j]){
+        //       printf("Error at i=%d, j=%d: expected %02x, got %02x\n", i, j, (unsigned char)im2col_buf[i][j], (unsigned char)(cfu_op0(1, i, j) & 0xFF));
+        //     }
         //   }
-        //   printf("\n");
         // }
-        // //print im2col_buf
-        // printf("\n");
-        // printf("Im2Col Buffer:\n");
-        // for (int i = 0; i < tile_width; ++i) {
-        //   for (int k = 0; k < K; ++k) {
-        //     printf("%d ", im2col_buf[i][k]);
-        //   }
-        //   printf("\n");
-        // }
-
 
         for (int i = 0; i < tile_height; ++i) {
           for (int j = 0; j < tile_width; ++j) {
@@ -215,13 +202,6 @@ inline void ConvPerChannel(
           }
         }
 
-        // for (int i = 0; i < tile_height; ++i) {
-        //   for (int j = 0; j < tile_width; ++j) {
-        //     for (int k = 0; k < K; ++k) {
-        //       tile_golden_acc[i][j] += filter_buf[k][i] * (im2col_buf[j][k] + input_offset);
-        //     }
-        //   }
-        // }
 
         for (int i = 0; i < filter_idx; ++i){
           for(int j = 0; j < tile_width; ++j){
@@ -230,33 +210,10 @@ inline void ConvPerChannel(
           }
         }
 
-
-        // printf("\n");
-        // printf("Tile golden acc:\n");
-        // for (int i = 0; i < tile_height; ++i) {
-        //   for (int j = 0; j < tile_width; ++j) {
-        //     printf("%ld ", tile_golden_acc[i][j]);
-        //   }
-        //   printf("\n");
-        // }
-
-        // printf("\n");
-        // printf("Tile acc:\n");
-        // for (int i = 0; i < tile_height; ++i) {
-        //   for (int j = 0; j < tile_width; ++j) {
-        //     printf("%ld ", tile_acc[i][j]);
-        //   }
-        //   printf("\n");
-        // }
-
       
 
         for (int i = 0; i < tile_height; ++i) {
           for (int j = 0; j < tile_width; ++j) {
-
-            // if(tile_acc[i][j] != tile_golden_acc[i][j]){
-            //   printf("Mismatch at m=%d, n=%d: got %ld, expected %ld\n", m_base + i, n_base + j, tile_acc[i][j], tile_golden_acc[i][j]);
-            // }
 
             int m_curr = m_base + i;
             int n_curr = n_base + j;
@@ -284,7 +241,6 @@ inline void ConvPerChannel(
 
 
   }
-
   perf_disable_counter(6);
 }
 
