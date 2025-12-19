@@ -1,6 +1,79 @@
 make -C /home/yue/AAML/CFU-Playground/soc -f /home/yue/AAML/CFU-Playground/soc/common_soc.mk litex-software
 make[1]: Entering directory '/home/yue/AAML/CFU-Playground/soc'
-make[1]: Nothing to be done for 'litex-software'.
+MAKEFLAGS=-j8 /home/yue/AAML/CFU-Playground/scripts/pyrun ./common_soc.py --output-dir build/digilent_arty.AAML-2025-Project --csr-json build/digilent_arty.AAML-2025-Project/csr.json --cpu-cfu  /home/yue/AAML/CFU-Playground/proj/AAML-2025-Project/cfu.v --uart-baudrate 1843200 --target digilent_arty "--variant=a7-100" "--cpu-variant=perf+cfu"
+make_soc: cpu_variant is perf+cfu
+Variant "perf+cfu" already known.
+INFO: Found CFU Bus, attaching LiteScopeAnalyzer...
+Found and copied "/home/yue/AAML/CFU-Playground/soc/vexriscv/VexRiscv_PerfCfu.v".
+make[2]: Entering directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/libc'
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/libc'
+make[2]: Entering directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/libcompiler_rt'
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/libcompiler_rt'
+make[2]: Entering directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/libbase'
+ CC       console.o
+ CC       system.o
+ CC       memtest.o
+ CC       uart.o
+ CC       spiflash.o
+ CC       i2c.o
+ CC       isr.o
+ AR       libbase.a
+make[2]: Leaving directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/libbase'
+make[2]: Entering directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/libfatfs'
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/libfatfs'
+make[2]: Entering directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/liblitespi'
+ CC       spiflash.o
+ AR       liblitespi.a
+make[2]: Leaving directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/liblitespi'
+make[2]: Entering directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/liblitedram'
+ CC       sdram.o
+ CC       bist.o
+ CC       sdram_dbg.o
+ AR       liblitedram.a
+make[2]: Leaving directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/liblitedram'
+make[2]: Entering directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/libliteeth'
+ CC       udp.o
+ CC       mdio.o
+ AR       libliteeth.a
+make[2]: Leaving directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/libliteeth'
+make[2]: Entering directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/liblitesdcard'
+ CC       sdcard.o
+ CC       spisdcard.o
+ AR       liblitesdcard.a
+make[2]: Leaving directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/liblitesdcard'
+make[2]: Entering directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/liblitesata'
+ CC       sata.o
+ AR       liblitesata.a
+make[2]: Leaving directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/liblitesata'
+make[2]: Entering directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/bios'
+ CC       boot.o
+ CC       cmd_bios.o
+ CC       cmd_mem.o
+ CC       cmd_boot.o
+ CC       cmd_i2c.o
+ CC       cmd_spiflash.o
+ CC       cmd_litedram.o
+ CC       cmd_liteeth.o
+ CC       cmd_litesdcard.o
+ CC       cmd_litesata.o
+ CC       sim_debug.o
+ CC       main.o
+ CC       crt0.o
+ CC       bios.elf
+chmod -x bios.elf
+ OBJCOPY  bios.bin
+chmod -x bios.bin
+python3 -m litex.soc.software.crcfbigen bios.bin --little
+python3 -m litex.soc.software.memusage bios.elf /home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/bios/../include/generated/regions.ld riscv64-unknown-elf
+
+ROM usage: 27.15KiB 	(21.21%)
+RAM usage: 1.61KiB 	(20.12%)
+
+rm crt0.o
+make[2]: Leaving directory '/home/yue/AAML/CFU-Playground/soc/build/digilent_arty.AAML-2025-Project/software/bios'
 make[1]: Leaving directory '/home/yue/AAML/CFU-Playground/soc'
 Copying tflite-micro files
 for d in tensorflow/lite tensorflow/lite/c tensorflow/lite/core/api tensorflow/lite/core/c tensorflow/lite/kernels tensorflow/lite/kernels/internal tensorflow/lite/kernels/internal/optimized tensorflow/lite/kernels/internal/reference tensorflow/lite/kernels/internal/reference/integer_ops tensorflow/lite/micro tensorflow/lite/micro/kernels tensorflow/lite/micro/memory_planner tensorflow/lite/micro/arena_allocator tensorflow/lite/micro/tflite_bridge tensorflow/lite/schema; do \
@@ -32,7 +105,22 @@ build-dir: copying source to build dir
 /bin/rm -rf			             /home/yue/AAML/CFU-Playground/proj/AAML-2025-Project/build/_*
 make -C /home/yue/AAML/CFU-Playground/proj/AAML-2025-Project/build all -j 32
 make[1]: Entering directory '/home/yue/AAML/CFU-Playground/proj/AAML-2025-Project/build'
+  CC  base.c	base.o
+  CC  benchmarks.c	benchmarks.o
+  CC  donut.c	donut.o
+  CC  fb_util.c	fb_util.o
+  CC  main.c	main.o
+  CC  spiflash.c	spiflash.o
+  CC  embench_wrapper.c	embench_wrapper.o
+  CXX instruction_handler.cc	instruction_handler.o
+  CXX mnv2.cc	mnv2.o
+  CXX pdti8.cc	pdti8.o
+  CXX perf.cc	perf.o
   CXX conv.cc	conv.o
+  CXX micro_time.cc	micro_time.o
+  CXX tflite.cc	tflite.o
+  CXX submitter_implemented.cc	submitter_implemented.o
+  AS  crt0-vexriscv.S	crt0-vexriscv.o
   LD       software.elf
   OBJDUMP  software.elf.dis
   OBJDUMP  software.elf.sym
@@ -50,7 +138,23 @@ make[1]: Entering directory '/home/yue/AAML/CFU-Playground/proj/AAML-2025-Projec
 make[2]: Entering directory '/home/yue/AAML/CFU-Playground/proj/AAML-2025-Project/build/renode'
 make[3]: Entering directory '/home/yue/AAML/CFU-Playground/proj/AAML-2025-Project/build/renode'
 make[4]: Entering directory '/home/yue/AAML/CFU-Playground/proj/AAML-2025-Project/build/renode'
-[  5%] Generating CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu_copy.cmake
+[  5%] Generating CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu.cpp, CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu___024root__DepSet_h0cdad931__0.cpp, CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu___024root__DepSet_h1d3cd730__0.cpp, CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu__ConstPool_0.cpp, CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu___024root__Slow.cpp, CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu___024root__DepSet_h0cdad931__0__Slow.cpp, CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu___024root__DepSet_h1d3cd730__0__Slow.cpp, CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu__Trace__0.cpp, CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu__Syms.cpp, CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu__Trace__0__Slow.cpp, CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu__TraceDecls__0__Slow.cpp, CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu.cmake
+[ 10%] Generating CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu_copy.cmake
+make[4]: Leaving directory '/home/yue/AAML/CFU-Playground/proj/AAML-2025-Project/build/renode'
+make[4]: Entering directory '/home/yue/AAML/CFU-Playground/proj/AAML-2025-Project/build/renode'
+[ 15%] Building CXX object CMakeFiles/libVtop.dir/sim_main.cpp.o
+[ 20%] Building CXX object CMakeFiles/libVtop.dir/CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu.cpp.o
+[ 25%] Building CXX object CMakeFiles/libVtop.dir/CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu___024root__DepSet_h0cdad931__0.cpp.o
+[ 30%] Building CXX object CMakeFiles/libVtop.dir/CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu___024root__DepSet_h1d3cd730__0.cpp.o
+[ 35%] Building CXX object CMakeFiles/libVtop.dir/CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu__ConstPool_0.cpp.o
+[ 40%] Building CXX object CMakeFiles/libVtop.dir/CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu___024root__Slow.cpp.o
+[ 45%] Building CXX object CMakeFiles/libVtop.dir/CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu___024root__DepSet_h0cdad931__0__Slow.cpp.o
+[ 50%] Building CXX object CMakeFiles/libVtop.dir/CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu___024root__DepSet_h1d3cd730__0__Slow.cpp.o
+[ 55%] Building CXX object CMakeFiles/libVtop.dir/CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu__Trace__0.cpp.o
+[ 60%] Building CXX object CMakeFiles/libVtop.dir/CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu__Syms.cpp.o
+[ 65%] Building CXX object CMakeFiles/libVtop.dir/CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu__Trace__0__Slow.cpp.o
+[ 70%] Building CXX object CMakeFiles/libVtop.dir/CMakeFiles/libVtop.dir/Vcfu.dir/Vcfu__TraceDecls__0__Slow.cpp.o
+[ 75%] Linking CXX shared library libVtop.so
 make[4]: Leaving directory '/home/yue/AAML/CFU-Playground/proj/AAML-2025-Project/build/renode'
 [100%] Built target libVtop
 make[3]: Leaving directory '/home/yue/AAML/CFU-Playground/proj/AAML-2025-Project/build/renode'
@@ -67,115 +171,117 @@ Generating Renode scripts finished
 Running interactively under renode
 pushd /home/yue/AAML/CFU-Playground/proj/AAML-2025-Project/build/renode/ && /home/yue/AAML/CFU-Playground/third_party/renode/renode -e "s @digilent_arty.resc" && popd
 ~/AAML/CFU-Playground/proj/AAML-2025-Project/build/renode ~/AAML/CFU-Playground/proj/AAML-2025-Project
-16:09:11.9174 [INFO] Loaded monitor commands from: /home/yue/AAML/CFU-Playground/third_party/renode/scripts/monitor.py
-16:09:12.1431 [INFO] Including script: /home/yue/AAML/CFU-Playground/proj/AAML-2025-Project/build/renode/digilent_arty.resc
-16:09:12.1489 [INFO] System bus created.
-16:09:12.4358 [WARNING] SimulationFilePath not set!
-16:09:12.8167 [INFO] digilent_arty: GDB server with all CPUs started on port :10001
-16:09:12.8551 [WARNING] Method HandleMainMessage is marked with Export attribute, but was not exported.
-16:09:12.8551 [WARNING] Method Receive is marked with Export attribute, but was not exported.
-16:09:12.8844 [INFO] sysbus: Loading segment of 48947416 bytes length at 0x40000000.
-16:09:12.9437 [INFO] cpu: Setting PC value to 0x40000000.
-16:09:13.0766 [INFO] digilent_arty: Machine started.
-16:09:13.0951 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x400880cc, opcode: 0x30551073
-16:09:13.0974 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40088128, opcode: 0x30451073
-16:09:13.1000 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40000040, opcode: 0xbc079073
-16:09:13.1015 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40000044, opcode: 0x30046073
-16:09:13.1015 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40088318, opcode: 0xbc0027f3
-16:09:13.1067 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40088320, opcode: 0xbc079073
-16:09:13.1067 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x4008827c, opcode: 0x300025f3
-16:09:13.1068 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40088294, opcode: 0xbc0025f3
-16:09:13.1068 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x4008829c, opcode: 0xbc081073
-16:09:13.1073 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x400882c8, opcode: 0xbc059073
-16:09:13.1078 [INFO] uart: [host: 0.27s (+0.27s)|virt: 7.3ms (+7.3ms)] Hello, World!
-16:09:13.1080 [INFO] uart: [host: 0.27s (+0.17ms)|virt:    7.3ms (+0s)] 
-16:09:13.1083 [INFO] uart: [host: 0.27s (+0.38ms)|virt:    7.3ms (+0s)] CFU Playground
-16:09:13.1096 [INFO] uart: [host: 0.27s (+1.32ms)|virt:    7.3ms (+0s)] ==============
-16:09:13.1100 [INFO] uart: [host:  0.27s (+0.4ms)|virt:    7.3ms (+0s)]  1: TfLM Models menu
-16:09:13.1105 [INFO] uart: [host: 0.27s (+0.52ms)|virt: 7.4ms (+0.1ms)]  2: Functional CFU Tests
-16:09:13.1108 [INFO] uart: [host: 0.27s (+0.35ms)|virt:    7.4ms (+0s)]  3: Project menu
-16:09:13.1114 [INFO] uart: [host: 0.27s (+0.55ms)|virt:    7.4ms (+0s)]  4: Performance Counter Tests
-16:09:13.1118 [INFO] uart: [host:  0.27s (+0.4ms)|virt:    7.4ms (+0s)]  5: TFLite Unit Tests
-16:09:13.1121 [INFO] uart: [host: 0.27s (+0.28ms)|virt:    7.4ms (+0s)]  6: Benchmarks
-16:09:13.1123 [INFO] uart: [host: 0.27s (+0.26ms)|virt:    7.4ms (+0s)]  7: Util Tests
-16:09:13.1126 [INFO] uart: [host: 0.28s (+0.29ms)|virt:    7.4ms (+0s)]  8: Embench IoT
-16:09:14.4304 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40000020, opcode: 0xfc002773
-16:09:14.4305 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40000024, opcode: 0xbc0027f3
-16:09:14.4308 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x400881fc, opcode: 0x30002673
-16:09:14.4310 [INFO] uart: [host:  1.59s (+1.32s)|virt: 5.22s (+5.21s)] main> 5
-16:09:14.4311 [INFO] uart: [host:   1.59s (+79?s)|virt:    5.22s (+0s)] 
-16:09:14.4317 [INFO] uart: [host: 1.59s (+0.62ms)|virt:    5.22s (+0s)] Running TFLite Unit Tests
-16:09:14.4318 [INFO] uart: [host:   1.59s (+80?s)|virt:    5.22s (+0s)] 
-16:09:14.4320 [INFO] uart: [host: 1.59s (+0.28ms)|virt:    5.22s (+0s)] CONV TEST:
-16:09:14.4331 [INFO] uart: [host:  1.6s (+1.09ms)|virt:    5.22s (+0s)] Testing SimpleTestQuantized4bitPerChannel
-16:09:14.4359 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40028e80, opcode: 0xb1179073
-16:09:14.4366 [INFO] uart: [host:  1.6s (+3.46ms)|virt: 5.22s (+0.3ms)] M=3, N=2, K=4
-16:09:14.4388 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40029744, opcode: 0xb1179073
-16:09:14.4394 [INFO] uart: [host:  1.6s (+2.84ms)|virt:    5.22s (+0s)] Testing SimpleTestFloat
-16:09:14.4418 [INFO] uart: [host:   1.6s (+2.4ms)|virt: 5.22s (+0.2ms)] Testing InputAndFilterSameWidthHeight
-16:09:14.4430 [INFO] uart: [host: 1.61s (+1.12ms)|virt: 5.22s (+0.1ms)] Testing InputOutputDifferentTypeIsError
-16:09:14.4451 [INFO] uart: [host: 1.61s (+2.09ms)|virt: 5.22s (+0.1ms)] src/tensorflow/lite/micro/kernels/conv.cc:52 input->type != output->type (1 != 9)
-16:09:14.4457 [INFO] uart: [host: 1.61s (+0.67ms)|virt:    5.22s (+0s)] Testing HybridModeIsError
-16:09:14.4487 [INFO] uart: [host: 1.61s (+3.02ms)|virt: 5.22s (+0.1ms)] src/tensorflow/lite/micro/kernels/conv.cc Hybrid models are not supported on TFLite Micro.
-16:09:14.4497 [INFO] uart: [host: 1.61s (+0.92ms)|virt:    5.22s (+0s)] Testing SimpleTestQuantizedPerChannel
-16:09:14.4502 [INFO] uart: [host: 1.61s (+0.58ms)|virt: 5.22s (+0.3ms)] M=3, N=2, K=4
-16:09:14.4519 [INFO] uart: [host: 1.61s (+1.62ms)|virt: 5.22s (+0.1ms)] Testing SimpleTestQuantized16x8PerChannel64bBias
-16:09:14.4538 [INFO] uart: [host: 1.62s (+1.97ms)|virt: 5.22s (+0.3ms)] Testing SimpleTestQuantized16x8PerChannel32bBias
-16:09:14.4552 [INFO] uart: [host: 1.62s (+1.37ms)|virt: 5.22s (+0.3ms)] Testing SimpleTestDilatedQuantizedPerChannel
-16:09:14.4562 [INFO] uart: [host: 1.62s (+1.04ms)|virt: 5.22s (+0.4ms)] M=3, N=4, K=4
-16:09:14.4577 [INFO] uart: [host: 1.62s (+1.47ms)|virt: 5.22s (+0.1ms)] Testing SimpleTestQuantizedPerChannelRelu6
-16:09:14.4582 [INFO] uart: [host: 1.62s (+0.55ms)|virt: 5.22s (+0.3ms)] M=3, N=2, K=4
-16:09:14.4596 [INFO] uart: [host: 1.62s (+1.32ms)|virt: 5.22s (+0.1ms)] Testing SimpleTestQuantized16x8PerChannelRelu664bBias
-16:09:14.4608 [INFO] uart: [host: 1.62s (+1.21ms)|virt: 5.22s (+0.3ms)] Testing SimpleTestQuantized16x8PerChannelRelu632bBias
-16:09:14.4617 [INFO] uart: [host: 1.62s (+0.88ms)|virt: 5.22s (+0.3ms)] Testing Kernel1x1QuantizedPerChannel
-16:09:14.4621 [INFO] uart: [host: 1.62s (+0.45ms)|virt: 5.22s (+0.3ms)] M=3, N=4, K=4
-16:09:14.4637 [INFO] uart: [host: 1.63s (+1.62ms)|virt: 5.22s (+0.1ms)] Testing Kernel1x1QuantizedPerChannelRelu6
-16:09:14.4642 [INFO] uart: [host: 1.63s (+0.45ms)|virt: 5.22s (+0.3ms)] M=3, N=4, K=4
-16:09:14.4654 [INFO] uart: [host: 1.63s (+1.21ms)|virt:    5.22s (+0s)] Testing Kernel1x1Quantized16x8PerChannelRelu6
-16:09:14.4668 [INFO] uart: [host:  1.63s (+1.4ms)|virt: 5.22s (+0.4ms)] Testing BroadcastPerLayerQuantizationToPerChannelShouldMatchGolden
-16:09:14.4674 [INFO] uart: [host: 1.63s (+0.57ms)|virt: 5.22s (+0.1ms)] M=3, N=2, K=4
-16:09:14.4689 [INFO] uart: [host: 1.63s (+1.55ms)|virt: 5.22s (+0.1ms)] Testing Int8Filter1x3x3x1ShouldMatchGoldenEvenInputPaddingSame
-16:09:14.4702 [INFO] uart: [host:  1.63s (+1.3ms)|virt: 5.22s (+0.1ms)] M=1, N=4, K=9
-16:09:14.4723 [INFO] uart: [host: 1.63s (+2.03ms)|virt: 5.22s (+0.1ms)] Testing Int8Filter1x3x3x1ShouldMatchGoldenOddInputPaddingSame
-16:09:14.4728 [INFO] uart: [host: 1.64s (+0.52ms)|virt:    5.22s (+0s)] M=1, N=9, K=9
-16:09:14.4762 [INFO] uart: [host: 1.64s (+3.46ms)|virt: 5.22s (+0.1ms)] Testing Int8Input32x1Filter32x32ShouldMatchGolden
-16:09:14.4779 [INFO] uart: [host:  1.64s (+1.7ms)|virt:   5.23s (+3ms)] M=32, N=1, K=32
-16:09:14.4799 [INFO] uart: [host: 1.64s (+1.98ms)|virt: 5.23s (+0.5ms)] Testing Int8Filter8x3x3x3PerChannelScaleRelu6ShouldMatchGolden
-16:09:14.4804 [INFO] uart: [host: 1.64s (+0.53ms)|virt: 5.23s (+0.1ms)] M=8, N=256, K=27
-16:09:14.6491 [INFO] uart: [host:  1.81s (+0.17s)|virt: 5.23s (+8.4ms)] 20/20 tests passed
-16:09:14.6495 [INFO] uart: [host: 1.81s (+0.41ms)|virt:    5.23s (+0s)] ~~~ALL TESTS PASSED~~~
-16:09:14.6496 [INFO] uart: [host:   1.81s (+46?s)|virt:    5.23s (+0s)] 
-16:09:14.6500 [INFO] uart: [host: 1.81s (+0.45ms)|virt: 5.24s (+0.1ms)] DEPTHWISE_CONV TEST:
-16:09:14.6504 [INFO] uart: [host: 1.81s (+0.38ms)|virt:    5.24s (+0s)] Testing SimpleTest
-16:09:14.6515 [INFO] uart: [host: 1.81s (+1.07ms)|virt: 5.24s (+0.1ms)] Testing SimpleTestRelu
-16:09:14.6523 [INFO] uart: [host: 1.81s (+0.81ms)|virt: 5.24s (+0.1ms)] Testing SimpleTestQuantizedPerChannel
-16:09:14.6546 [INFO] uart: [host: 1.82s (+2.34ms)|virt: 5.24s (+0.4ms)] Testing SimpleTestQuantizedPerChannelDepthMultiplier1
-16:09:14.6557 [INFO] uart: [host: 1.82s (+1.07ms)|virt: 5.24s (+0.2ms)] Testing TestQuantizedPerChannelDepthMultiplier1Relu6
-16:09:14.6568 [INFO] uart: [host: 1.82s (+1.12ms)|virt: 5.24s (+0.4ms)] Testing SimpleTestDilatedQuantizedPerChannel
-16:09:14.6573 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x4008827c, opcode: 0x300025f3
-16:09:14.6573 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x4008827c, opcode: 0x300025f3
-16:09:14.6579 [INFO] uart: [host: 1.82s (+1.08ms)|virt: 5.24s (+0.5ms)] Testing TestQuantizedPerChannelCompareWithFloat
-16:09:14.6593 [INFO] uart: [host: 1.82s (+1.46ms)|virt: 5.24s (+0.4ms)] Testing SimpleTestQuantizedPerChannelInt4Filter
-16:09:14.6605 [INFO] uart: [host: 1.82s (+1.19ms)|virt: 5.24s (+0.3ms)] Testing PerChannelBroadcastQuantizationParams
-16:09:14.6618 [INFO] uart: [host: 1.82s (+1.28ms)|virt: 5.24s (+0.2ms)] Testing FilterDimsNotMatchingAffineQuantization
-16:09:14.6654 [INFO] uart: [host: 1.83s (+3.62ms)|virt: 5.24s (+0.3ms)] src/tensorflow/lite/micro/kernels/depthwise_conv_common.cc:182 affine_quantization->scale->size == 1 || affine_quantization->scale->size == filter->dims->data[ was not true.
-16:09:14.6680 [INFO] uart: [host: 1.83s (+2.56ms)|virt: 5.24s (+0.2ms)] src/tensorflow/lite/micro/kernels/depthwise_conv_common.cc:187 affine_quantization->scale->size != affine_quantization->zero_point->size (4 != 2)
-16:09:14.6689 [INFO] uart: [host: 1.83s (+0.91ms)|virt:    5.24s (+0s)] Testing Int8Input32x4Filter32x4ShouldMatchGolden
-16:09:14.6706 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x4008827c, opcode: 0x300025f3
-16:09:14.6706 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x4008827c, opcode: 0x300025f3
-16:09:14.6709 [INFO] uart: [host: 1.83s (+1.98ms)|virt: 5.24s (+1.5ms)] Testing Int8Input32x1Filter32x1ShouldMatchGolden
-16:09:14.6717 [INFO] uart: [host: 1.83s (+0.82ms)|virt: 5.24s (+0.7ms)] 12/12 tests passed
-16:09:14.6721 [INFO] uart: [host: 1.83s (+0.43ms)|virt: 5.24s (+0.1ms)] ~~~ALL TESTS PASSED~~~
-16:09:14.6722 [INFO] uart: [host:   1.83s (+54?s)|virt:    5.24s (+0s)] 
-16:09:14.6723 [INFO] uart: [host:   1.83s (+94?s)|virt:    5.24s (+0s)] ---
-16:09:14.6723 [INFO] uart: [host:   1.83s (+48?s)|virt:    5.24s (+0s)] 
-16:09:14.6726 [INFO] uart: [host: 1.84s (+0.28ms)|virt:    5.24s (+0s)] CFU Playground
-16:09:14.6729 [INFO] uart: [host: 1.84s (+0.26ms)|virt:    5.24s (+0s)] ==============
-16:09:14.6733 [INFO] uart: [host:  1.84s (+0.4ms)|virt:    5.24s (+0s)]  1: TfLM Models menu
-16:09:14.6737 [INFO] uart: [host: 1.84s (+0.42ms)|virt:    5.24s (+0s)]  2: Functional CFU Tests
-16:09:14.6740 [INFO] uart: [host:  1.84s (+0.3ms)|virt:    5.24s (+0s)]  3: Project menu
-16:09:14.6745 [INFO] uart: [host: 1.84s (+0.54ms)|virt:    5.24s (+0s)]  4: Performance Counter Tests
-16:09:14.6749 [INFO] uart: [host: 1.84s (+0.41ms)|virt:    5.24s (+0s)]  5: TFLite Unit Tests
-16:09:14.6756 [INFO] uart: [host: 1.84s (+0.69ms)|virt: 5.24s (+0.1ms)]  6: Benchmarks
-16:09:14.6759 [INFO] uart: [host: 1.84s (+0.27ms)|virt:    5.24s (+0s)]  7: Util Tests
-16:09:14.6762 [INFO] uart: [host: 1.84s (+0.28ms)|virt:    5.24s (+0s)]  8: Embench IoT
+16:30:28.0204 [INFO] Loaded monitor commands from: /home/yue/AAML/CFU-Playground/third_party/renode/scripts/monitor.py
+16:30:28.2502 [INFO] Including script: /home/yue/AAML/CFU-Playground/proj/AAML-2025-Project/build/renode/digilent_arty.resc
+16:30:28.2576 [INFO] System bus created.
+16:30:28.5451 [WARNING] SimulationFilePath not set!
+16:30:28.9238 [INFO] digilent_arty: GDB server with all CPUs started on port :10001
+16:30:28.9586 [WARNING] Method HandleMainMessage is marked with Export attribute, but was not exported.
+16:30:28.9586 [WARNING] Method Receive is marked with Export attribute, but was not exported.
+16:30:28.9906 [INFO] sysbus: Loading segment of 48947160 bytes length at 0x40000000.
+16:30:29.0504 [INFO] cpu: Setting PC value to 0x40000000.
+16:30:29.1777 [INFO] digilent_arty: Machine started.
+16:30:29.1952 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40088008, opcode: 0x30551073
+16:30:29.1974 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40088064, opcode: 0x30451073
+16:30:29.2001 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40000040, opcode: 0xbc079073
+16:30:29.2016 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40000044, opcode: 0x30046073
+16:30:29.2016 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40088254, opcode: 0xbc0027f3
+16:30:29.2065 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x4008825c, opcode: 0xbc079073
+16:30:29.2066 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x400881b8, opcode: 0x300025f3
+16:30:29.2066 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x400881d0, opcode: 0xbc0025f3
+16:30:29.2066 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x400881d8, opcode: 0xbc081073
+16:30:29.2072 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40088204, opcode: 0xbc059073
+16:30:29.2075 [INFO] uart: [host: 0.26s (+0.26s)|virt: 7.3ms (+7.3ms)] Hello, World!
+16:30:29.2076 [INFO] uart: [host: 0.26s (+0.14ms)|virt:    7.3ms (+0s)] 
+16:30:29.2078 [INFO] uart: [host: 0.27s (+0.23ms)|virt:    7.3ms (+0s)] CFU Playground
+16:30:29.2080 [INFO] uart: [host: 0.27s (+0.17ms)|virt:    7.3ms (+0s)] ==============
+16:30:29.2082 [INFO] uart: [host: 0.27s (+0.25ms)|virt:    7.3ms (+0s)]  1: TfLM Models menu
+16:30:29.2085 [INFO] uart: [host:  0.27s (+0.3ms)|virt: 7.4ms (+0.1ms)]  2: Functional CFU Tests
+16:30:29.2097 [INFO] uart: [host: 0.27s (+1.12ms)|virt:    7.4ms (+0s)]  3: Project menu
+16:30:29.2100 [INFO] uart: [host: 0.27s (+0.33ms)|virt:    7.4ms (+0s)]  4: Performance Counter Tests
+16:30:29.2102 [INFO] uart: [host: 0.27s (+0.24ms)|virt:    7.4ms (+0s)]  5: TFLite Unit Tests
+16:30:29.2104 [INFO] uart: [host: 0.27s (+0.17ms)|virt:    7.4ms (+0s)]  6: Benchmarks
+16:30:29.2106 [INFO] uart: [host: 0.27s (+0.17ms)|virt:    7.4ms (+0s)]  7: Util Tests
+16:30:29.2107 [INFO] uart: [host: 0.27s (+0.18ms)|virt:    7.4ms (+0s)]  8: Embench IoT
+16:30:50.8873 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40000020, opcode: 0xfc002773
+16:30:50.8874 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40000024, opcode: 0xbc0027f3
+16:30:50.8876 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40088138, opcode: 0x30002673
+16:30:50.8877 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x400881b8, opcode: 0x300025f3
+16:30:50.8877 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x400881d0, opcode: 0xbc0025f3
+16:30:50.8877 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x400881d8, opcode: 0xbc081073
+16:30:50.8877 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40088204, opcode: 0xbc059073
+16:30:50.8878 [INFO] uart: [host: 21.94s (+21.68s)|virt: 96.92s (+96.91s)] main> 5
+16:30:50.8878 [INFO] uart: [host:   21.95s (+73?s)|virt:     96.92s (+0s)] 
+16:30:50.8882 [INFO] uart: [host: 21.95s (+0.38ms)|virt:     96.92s (+0s)] Running TFLite Unit Tests
+16:30:50.8883 [INFO] uart: [host:   21.95s (+50?s)|virt:     96.92s (+0s)] 
+16:30:50.8884 [INFO] uart: [host: 21.95s (+0.14ms)|virt:     96.92s (+0s)] CONV TEST:
+16:30:50.8893 [INFO] uart: [host: 21.95s (+0.87ms)|virt:     96.92s (+0s)] Testing SimpleTestQuantized4bitPerChannel
+16:30:50.8912 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40028e80, opcode: 0xb1179073
+16:30:50.8916 [INFO] uart: [host: 21.95s (+2.34ms)|virt:  96.92s (+0.3ms)] M=3, N=2, K=4
+16:30:50.8930 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x40029674, opcode: 0xb1179073
+16:30:50.8933 [INFO] uart: [host:  21.95s (+1.7ms)|virt:     96.92s (+0s)] Testing SimpleTestFloat
+16:30:50.8942 [INFO] uart: [host: 21.95s (+0.87ms)|virt:  96.92s (+0.2ms)] Testing InputAndFilterSameWidthHeight
+16:30:50.8947 [INFO] uart: [host: 21.95s (+0.49ms)|virt:  96.92s (+0.1ms)] Testing InputOutputDifferentTypeIsError
+16:30:50.8960 [INFO] uart: [host: 21.95s (+1.32ms)|virt:  96.92s (+0.1ms)] src/tensorflow/lite/micro/kernels/conv.cc:52 input->type != output->type (1 != 9)
+16:30:50.8963 [INFO] uart: [host:  21.95s (+0.3ms)|virt:     96.92s (+0s)] Testing HybridModeIsError
+16:30:50.8973 [INFO] uart: [host: 21.95s (+0.98ms)|virt:  96.92s (+0.1ms)] src/tensorflow/lite/micro/kernels/conv.cc Hybrid models are not supported on TFLite Micro.
+16:30:50.8977 [INFO] uart: [host: 21.95s (+0.41ms)|virt:     96.92s (+0s)] Testing SimpleTestQuantizedPerChannel
+16:30:50.8980 [INFO] uart: [host: 21.96s (+0.31ms)|virt:  96.92s (+0.3ms)] M=3, N=2, K=4
+16:30:50.8991 [INFO] uart: [host: 21.96s (+1.07ms)|virt:  96.92s (+0.1ms)] Testing SimpleTestQuantized16x8PerChannel64bBias
+16:30:50.9001 [INFO] uart: [host: 21.96s (+1.04ms)|virt:  96.92s (+0.3ms)] Testing SimpleTestQuantized16x8PerChannel32bBias
+16:30:50.9010 [INFO] uart: [host: 21.96s (+0.89ms)|virt:  96.92s (+0.3ms)] Testing SimpleTestDilatedQuantizedPerChannel
+16:30:50.9014 [INFO] uart: [host: 21.96s (+0.35ms)|virt:  96.92s (+0.4ms)] M=3, N=4, K=4
+16:30:50.9022 [INFO] uart: [host: 21.96s (+0.84ms)|virt:  96.92s (+0.1ms)] Testing SimpleTestQuantizedPerChannelRelu6
+16:30:50.9026 [INFO] uart: [host: 21.96s (+0.39ms)|virt:  96.92s (+0.3ms)] M=3, N=2, K=4
+16:30:50.9037 [INFO] uart: [host: 21.96s (+1.14ms)|virt:  96.92s (+0.1ms)] Testing SimpleTestQuantized16x8PerChannelRelu664bBias
+16:30:50.9045 [INFO] uart: [host: 21.96s (+0.76ms)|virt:  96.92s (+0.3ms)] Testing SimpleTestQuantized16x8PerChannelRelu632bBias
+16:30:50.9050 [INFO] uart: [host: 21.96s (+0.54ms)|virt:  96.92s (+0.3ms)] Testing Kernel1x1QuantizedPerChannel
+16:30:50.9053 [INFO] uart: [host: 21.96s (+0.29ms)|virt:  96.92s (+0.3ms)] M=3, N=4, K=4
+16:30:50.9059 [INFO] uart: [host: 21.96s (+0.61ms)|virt:     96.92s (+0s)] Testing Kernel1x1QuantizedPerChannelRelu6
+16:30:50.9062 [INFO] uart: [host: 21.96s (+0.31ms)|virt:  96.92s (+0.4ms)] M=3, N=4, K=4
+16:30:50.9069 [INFO] uart: [host: 21.96s (+0.64ms)|virt:     96.92s (+0s)] Testing Kernel1x1Quantized16x8PerChannelRelu6
+16:30:50.9077 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x400881b8, opcode: 0x300025f3
+16:30:50.9078 [ERROR] cpu: RISC-V Zicsr instruction set is not enabled for this CPU! In future release this configuration will lead to an illegal instruction exception. PC: 0x400881b8, opcode: 0x300025f3
+16:30:50.9081 [INFO] uart: [host: 21.97s (+1.24ms)|virt:  96.92s (+0.4ms)] Testing BroadcastPerLayerQuantizationToPerChannelShouldMatchGolden
+16:30:50.9085 [INFO] uart: [host: 21.97s (+0.42ms)|virt:  96.92s (+0.1ms)] M=3, N=2, K=4
+16:30:50.9094 [INFO] uart: [host: 21.97s (+0.85ms)|virt:  96.92s (+0.1ms)] Testing Int8Filter1x3x3x1ShouldMatchGoldenEvenInputPaddingSame
+16:30:50.9097 [INFO] uart: [host:  21.97s (+0.3ms)|virt:  96.92s (+0.1ms)] M=1, N=4, K=9
+16:30:50.9106 [INFO] uart: [host: 21.97s (+0.97ms)|virt:     96.92s (+0s)] Testing Int8Filter1x3x3x1ShouldMatchGoldenOddInputPaddingSame
+16:30:50.9113 [INFO] uart: [host: 21.97s (+0.61ms)|virt:  96.92s (+0.1ms)] M=1, N=9, K=9
+16:30:50.9125 [INFO] uart: [host:  21.97s (+1.3ms)|virt:  96.92s (+0.1ms)] Testing Int8Input32x1Filter32x32ShouldMatchGolden
+16:30:50.9136 [INFO] uart: [host: 21.97s (+1.08ms)|virt:    96.92s (+3ms)] M=32, N=1, K=32
+16:30:50.9147 [INFO] uart: [host: 21.97s (+1.06ms)|virt:  96.92s (+0.5ms)] Testing Int8Filter8x3x3x3PerChannelScaleRelu6ShouldMatchGolden
+16:30:50.9150 [INFO] uart: [host: 21.97s (+0.34ms)|virt:  96.92s (+0.1ms)] M=8, N=256, K=27
+16:30:50.9852 [INFO] uart: [host: 22.04s (+70.18ms)|virt:  96.93s (+8.4ms)] 20/20 tests passed
+16:30:50.9855 [INFO] uart: [host:  22.04s (+0.27ms)|virt:     96.93s (+0s)] ~~~ALL TESTS PASSED~~~
+16:30:50.9855 [INFO] uart: [host:    22.04s (+35?s)|virt:     96.93s (+0s)] 
+16:30:50.9857 [INFO] uart: [host:  22.04s (+0.24ms)|virt:     96.93s (+0s)] DEPTHWISE_CONV TEST:
+16:30:50.9860 [INFO] uart: [host:  22.04s (+0.23ms)|virt:     96.93s (+0s)] Testing SimpleTest
+16:30:50.9868 [INFO] uart: [host:  22.04s (+0.79ms)|virt:  96.93s (+0.2ms)] Testing SimpleTestRelu
+16:30:50.9873 [INFO] uart: [host:  22.04s (+0.52ms)|virt:  96.93s (+0.1ms)] Testing SimpleTestQuantizedPerChannel
+16:30:50.9884 [INFO] uart: [host:  22.05s (+1.09ms)|virt:  96.93s (+0.3ms)] Testing SimpleTestQuantizedPerChannelDepthMultiplier1
+16:30:50.9894 [INFO] uart: [host:  22.05s (+1.06ms)|virt:  96.93s (+0.3ms)] Testing TestQuantizedPerChannelDepthMultiplier1Relu6
+16:30:50.9902 [INFO] uart: [host:  22.05s (+0.77ms)|virt:  96.93s (+0.4ms)] Testing SimpleTestDilatedQuantizedPerChannel
+16:30:50.9909 [INFO] uart: [host:  22.05s (+0.69ms)|virt:  96.93s (+0.4ms)] Testing TestQuantizedPerChannelCompareWithFloat
+16:30:50.9916 [INFO] uart: [host:  22.05s (+0.67ms)|virt:  96.93s (+0.5ms)] Testing SimpleTestQuantizedPerChannelInt4Filter
+16:30:50.9924 [INFO] uart: [host:   22.05s (+0.8ms)|virt:  96.94s (+0.3ms)] Testing PerChannelBroadcastQuantizationParams
+16:30:50.9936 [INFO] uart: [host:  22.05s (+1.24ms)|virt:  96.94s (+0.2ms)] Testing FilterDimsNotMatchingAffineQuantization
+16:30:50.9956 [INFO] uart: [host:  22.05s (+1.94ms)|virt:  96.94s (+0.3ms)] src/tensorflow/lite/micro/kernels/depthwise_conv_common.cc:182 affine_quantization->scale->size == 1 || affine_quantization->scale->size == filter->dims->data[ was not true.
+16:30:50.9973 [INFO] uart: [host:   22.05s (+1.8ms)|virt:  96.94s (+0.1ms)] src/tensorflow/lite/micro/kernels/depthwise_conv_common.cc:187 affine_quantization->scale->size != affine_quantization->zero_point->size (4 != 2)
+16:30:50.9979 [INFO] uart: [host:  22.06s (+0.53ms)|virt:  96.94s (+0.1ms)] Testing Int8Input32x4Filter32x4ShouldMatchGolden
+16:30:50.9990 [INFO] uart: [host:  22.06s (+1.11ms)|virt:  96.94s (+1.4ms)] Testing Int8Input32x1Filter32x1ShouldMatchGolden
+16:30:51.0000 [INFO] uart: [host:  22.06s (+0.96ms)|virt:  96.94s (+0.8ms)] 12/12 tests passed
+16:30:51.0002 [INFO] uart: [host:  22.06s (+0.25ms)|virt:     96.94s (+0s)] ~~~ALL TESTS PASSED~~~
+16:30:51.0002 [INFO] uart: [host:    22.06s (+33?s)|virt:     96.94s (+0s)] 
+16:30:51.0003 [INFO] uart: [host:    22.06s (+63?s)|virt:     96.94s (+0s)] ---
+16:30:51.0003 [INFO] uart: [host:    22.06s (+44?s)|virt:     96.94s (+0s)] 
+16:30:51.0005 [INFO] uart: [host:  22.06s (+0.16ms)|virt:     96.94s (+0s)] CFU Playground
+16:30:51.0007 [INFO] uart: [host:  22.06s (+0.16ms)|virt:     96.94s (+0s)] ==============
+16:30:51.0009 [INFO] uart: [host:  22.06s (+0.23ms)|virt:     96.94s (+0s)]  1: TfLM Models menu
+16:30:51.0012 [INFO] uart: [host:  22.06s (+0.28ms)|virt:  96.94s (+0.1ms)]  2: Functional CFU Tests
+16:30:51.0014 [INFO] uart: [host:  22.06s (+0.19ms)|virt:     96.94s (+0s)]  3: Project menu
+16:30:51.0017 [INFO] uart: [host:  22.06s (+0.31ms)|virt:     96.94s (+0s)]  4: Performance Counter Tests
+16:30:51.0019 [INFO] uart: [host:  22.06s (+0.23ms)|virt:     96.94s (+0s)]  5: TFLite Unit Tests
+16:30:51.0024 [INFO] uart: [host:  22.06s (+0.49ms)|virt:     96.94s (+0s)]  6: Benchmarks
+16:30:51.0025 [INFO] uart: [host:  22.06s (+0.16ms)|virt:     96.94s (+0s)]  7: Util Tests
+16:30:51.0027 [INFO] uart: [host:  22.06s (+0.17ms)|virt:     96.94s (+0s)]  8: Embench IoT

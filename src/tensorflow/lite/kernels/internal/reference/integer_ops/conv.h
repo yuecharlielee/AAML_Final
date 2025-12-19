@@ -97,7 +97,7 @@ inline void ConvPerChannel(
   const int TILE_SIZE = 32;
   
 
-  constexpr int MAX_K = 8000;
+  constexpr int MAX_K = 8192;
   int8_t im2col_buf[TILE_SIZE][MAX_K];
 
   int filter_row_index[256000];
@@ -107,51 +107,14 @@ inline void ConvPerChannel(
 
   int32_t tile_acc[32][32];
 
-
   for (int batch = 0; batch < batches; ++batch) {
-    for (int m_base = 0; m_base < M; m_base += TILE_SIZE) {
-      filter_idx = 0;
-      int current_group = m_base / filters_per_group;
-      int group_start = current_group * filters_per_group;
-      int group_end = group_start + filters_per_group;
+    for (int n_base = 0; n_base < N; n_base += TILE_SIZE) {
+      int tile_width = std::min(TILE_SIZE, N - n_base);
+      int group = 0;
 
-      int max_tile_height_in_group = group_end - m_base;
+      memset(im2col_buf, -input_offset, sizeof(im2col_buf));
 
-
-      int tile_height = std::min(TILE_SIZE, M - m_base);
-
-      tile_height = std::min(tile_height, max_tile_height_in_group);
-
-      for (int i = 0; i < tile_height; ++i) {
-        int out_channel = m_base + i;
-        int k = 0;
-        for (int filter_y = 0; filter_y < filter_height; ++filter_y) {
-          for (int filter_x = 0; filter_x < filter_width; ++filter_x) {
-            for (int in_channel = 0; in_channel < filter_input_depth;
-                 ++in_channel) {
-              int32_t filter_val = filter_data[Offset(
-                  filter_shape, out_channel, filter_y, filter_x, in_channel)];
-              // filter_buf[k][i] = static_cast<int8_t>(filter_val);
-              
-
-              if(filter_val != 0){
-                filter_row_index[filter_idx] = k;
-                filter_col_index[filter_idx] = i;
-                filter_val_arr[filter_idx] = static_cast<int8_t>(filter_val);
-                filter_idx++;
-              }
-              k++;
-            }
-          }
-        }
-      }
-
-      for (int n_base = 0; n_base < N; n_base += TILE_SIZE) {
-        int tile_width = std::min(TILE_SIZE, N - n_base);
-
-        auto group = m_base / filters_per_group;
-
-        for (int j = 0; j < tile_width; ++j) {
+      for (int j = 0; j < tile_width; ++j) {
           int n_curr = n_base + j;
           int out_y = n_curr / output_width;
           int out_x = n_curr % output_width;
@@ -167,54 +130,74 @@ inline void ConvPerChannel(
                                            (in_x < input_width) &&
                                            (in_y >= 0) && (in_y < input_height);
 
-                                           
-              for (int in_channel = 0; in_channel < filter_input_depth;
-                   ++in_channel) {
+              for (int in_channel = 0; in_channel < filter_input_depth; ++in_channel) {
                 if (is_point_inside_image) {
                   im2col_buf[j][k] = input_data[Offset(
                       input_shape, batch, in_y, in_x,
                       in_channel + group * filter_input_depth)];
                 }
-                else{
-                  im2col_buf[j][k] = -input_offset;
-                }
-                
                 
                 cfu_op0(0, im2col_buf[j][k], (j << 16) | k);
+                
+                k++;
+              }
+            }
+          }
+      }
+
+      for(int p = 0; p < tile_width; ++p){
+         for(int c = 0; c < K; c++){
+            int8_t cfu_val = static_cast<int8_t>(cfu_op0(1, p, c) & 0xff);
+            int8_t soft_val = im2col_buf[p][c];
+            
+            if(cfu_val != soft_val){
+               printf("Error at pixel=%d, channel=%d: expected %02x, got %02x\n", 
+                      p, c, (unsigned char)soft_val, (unsigned char)cfu_val);
+            }
+         }
+      }
+
+      for (int m_base = 0; m_base < M; m_base += TILE_SIZE) {
+        
+        memset(tile_acc, 0, sizeof(tile_acc));
+        
+        filter_idx = 0;
+        int current_group = m_base / filters_per_group;
+        int group_start = current_group * filters_per_group;
+        int group_end = group_start + filters_per_group;
+        int max_tile_height_in_group = group_end - m_base;
+        int tile_height = std::min(TILE_SIZE, M - m_base);
+        tile_height = std::min(tile_height, max_tile_height_in_group);
+
+        for (int i = 0; i < tile_height; ++i) {
+          int out_channel = m_base + i;
+          int k = 0;
+          for (int filter_y = 0; filter_y < filter_height; ++filter_y) {
+            for (int filter_x = 0; filter_x < filter_width; ++filter_x) {
+              for (int in_channel = 0; in_channel < filter_input_depth; ++in_channel) {
+                int32_t filter_val = filter_data[Offset(
+                    filter_shape, out_channel, filter_y, filter_x, in_channel)];
+                
+                if(filter_val != 0){
+                  filter_row_index[filter_idx] = k;
+                  filter_col_index[filter_idx] = i;
+                  filter_val_arr[filter_idx] = static_cast<int8_t>(filter_val);
+                  filter_idx++;
+                }
                 k++;
               }
             }
           }
         }
-        
-        // for(int i = 0; i < tile_width; ++i){
-        //   for(int j = 0;j < K;j++){
-        //     if(static_cast<int8_t>(cfu_op0(1, i, j) & 0xff) != im2col_buf[i][j]){
-        //       printf("Error at i=%d, j=%d: expected %02x, got %02x\n", i, j, (unsigned char)im2col_buf[i][j], (unsigned char)(cfu_op0(1, i, j) & 0xFF));
-        //     }
-        //   }
-        // }
+
+        for(int j = 0; j < tile_width; ++j){ 
+            for (int i = 0; i < filter_idx; ++i){
+                tile_acc[filter_col_index[i]][j] += filter_val_arr[i] * (im2col_buf[j][filter_row_index[i]] + input_offset);
+            }
+        }
 
         for (int i = 0; i < tile_height; ++i) {
           for (int j = 0; j < tile_width; ++j) {
-            tile_acc[i][j] = 0;
-            // tile_golden_acc[i][j] = 0;
-          }
-        }
-
-
-        for (int i = 0; i < filter_idx; ++i){
-          for(int j = 0; j < tile_width; ++j){
-            
-            tile_acc[filter_col_index[i]][j] += filter_val_arr[i] * (im2col_buf[j][filter_row_index[i]] + input_offset);
-          }
-        }
-
-      
-
-        for (int i = 0; i < tile_height; ++i) {
-          for (int j = 0; j < tile_width; ++j) {
-
             int m_curr = m_base + i;
             int n_curr = n_base + j;
             int out_channel = m_curr;
@@ -235,11 +218,9 @@ inline void ConvPerChannel(
                                out_channel)] = static_cast<int8_t>(tile_acc[i][j]);
           }
         }
-        
+       
       }
     }
-
-
   }
   perf_disable_counter(6);
 }
