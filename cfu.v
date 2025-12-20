@@ -71,15 +71,14 @@ module Cfu (
   reg [15:0] output_ch_idx_reg;
   reg [15:0] input_pixel_idx_reg; 
   
-  // [新增] Input Offset 暫存器
   reg signed [31:0] input_offset_reg;
-  
   reg [9:0] func_id_reg;
+  
   reg signed [31:0] product_reg [31:0];
+  reg signed [31:0] offset_product_reg;
 
   genvar i;
   
-  // Input Buffer (Block RAM)
   generate
     for (i = 0; i < 32; i = i + 1) begin : gbuff_instances
         global_buffer_bram #(
@@ -97,7 +96,6 @@ module Cfu (
     end
   endgenerate
 
-  // Result Buffer (Distributed RAM)
   generate
     for (i = 0; i < 32; i = i + 1) begin : result_ram_instances
         global_buffer_bram #(
@@ -134,7 +132,7 @@ module Cfu (
         if (cmd_valid) begin
             if (cmd_payload_function_id[9:3] == 0)
                 NextState = WRITE_INPUT;
-            else if (cmd_payload_function_id[9:3] == 6) // Op 6: Write Offset -> RESPOND
+            else if (cmd_payload_function_id[9:3] == 6) 
                 NextState = RESPOND;
             else
                 NextState = PROCESS;
@@ -142,14 +140,12 @@ module Cfu (
       end
       
       WRITE_INPUT: begin
-          NextState = IDLE; // Fast Ack
+          NextState = IDLE;
       end
 
       PROCESS: begin
-        // Op 3 (Accum), Op 5 (Overwrite)
         if (func_id_reg[9:3] == 3 || func_id_reg[9:3] == 5)
             NextState = COMPUTE_MUL;
-        // Op 1 (Read Input), Op 4 (Read Result)
         else if (func_id_reg[9:3] == 1 || func_id_reg[9:3] == 4)
             NextState = COMPUTE_ADD; 
         else
@@ -188,7 +184,7 @@ module Cfu (
         output_ch_idx_reg <= 0;
         input_pixel_idx_reg <= 0;
         func_id_reg <= 0;
-        input_offset_reg <= 0; // Reset Offset
+        input_offset_reg <= 0;
         
         wr_en_input <= 0;
         index_input <= 0;
@@ -200,6 +196,7 @@ module Cfu (
             data_in_result[k] <= 0;
             product_reg[k] <= 0;
         end
+        offset_product_reg <= 0;
     end
     else begin
         wr_en_input <= 0;
@@ -213,34 +210,30 @@ module Cfu (
                 if (cmd_valid) begin
                     func_id_reg <= cmd_payload_function_id;
 
-                    // === Op 0: Write Input ===
+                    // Op 0: Write Input
                     if (cmd_payload_function_id[9:3] == 0) begin 
                         wr_en_input <= 32'b1 << cmd_payload_inputs_1[31:16];
                         index_input <= cmd_payload_inputs_1[15:0];
                         data_in_input <= cmd_payload_inputs_0[7:0];
                     end
-                    
-                    // === Op 1: Read Input ===
+                    // Op 1: Read Input
                     else if (cmd_payload_function_id[9:3] == 1) begin
                         index_input <= cmd_payload_inputs_1[15:0];
                         input_pixel_idx_reg <= cmd_payload_inputs_0[15:0]; 
                     end
-                    
-                    // === Op 3 (Accum) / Op 5 (Overwrite) ===
+                    // Op 3 (Accum) / Op 5 (Overwrite)
                     else if (cmd_payload_function_id[9:3] == 3 || cmd_payload_function_id[9:3] == 5) begin
                         index_input <= cmd_payload_inputs_1[15:0];
                         index_result <= cmd_payload_inputs_1[31:16]; 
                         filter_val_reg <= $signed(cmd_payload_inputs_0);
                         output_ch_idx_reg <= cmd_payload_inputs_1[31:16]; 
                     end
-                    
-                    // === Op 4: Read Result ===
+                    // Op 4: Read Result
                     else if (cmd_payload_function_id[9:3] == 4) begin
                         index_result <= cmd_payload_inputs_0[15:0]; 
                         input_pixel_idx_reg <= cmd_payload_inputs_1[15:0]; 
                     end
-
-                    // === [新增] Op 6: Set Input Offset ===
+                    // Op 6: Set Offset
                     else if (cmd_payload_function_id[9:3] == 6) begin
                         input_offset_reg <= $signed(cmd_payload_inputs_0);
                     end
@@ -248,33 +241,32 @@ module Cfu (
             end
             
             WRITE_INPUT: begin
-                rsp_valid <= 1; // Ack for Op 0
+                rsp_valid <= 1;
             end
 
             PROCESS: begin
-                // BRAM Read
             end
 
             COMPUTE_MUL: begin
-                // Pipeline Stage 1: Multiply with Offset
-                // Formula: (Input + Offset) * Weight
+                // Pipeline Stage 1: Parallel Multiplication
                 for (k = 0; k < 32; k = k + 1) begin
-                    product_reg[k] <= ($signed(data_out_input[k]) + input_offset_reg) * filter_val_reg;
+                    product_reg[k] <= $signed(data_out_input[k]) * filter_val_reg;
                 end
+                offset_product_reg <= input_offset_reg * filter_val_reg;
             end
 
             COMPUTE_ADD: begin
-                // Pipeline Stage 2: Add
+                // Pipeline Stage 2: Add Results & Setup Write
                 if (func_id_reg[9:3] == 3) begin
                     for (k = 0; k < 32; k = k + 1) begin
-                        data_in_result[k] <= $signed(data_out_result[k]) + product_reg[k];
+                        data_in_result[k] <= $signed(data_out_result[k]) + product_reg[k] + offset_product_reg;
                     end
                     index_result <= output_ch_idx_reg;
                     wr_en_result <= {32{1'b1}}; 
                 end
                 else if (func_id_reg[9:3] == 5) begin
                     for (k = 0; k < 32; k = k + 1) begin
-                        data_in_result[k] <= product_reg[k]; 
+                        data_in_result[k] <= product_reg[k] + offset_product_reg; 
                     end
                     index_result <= output_ch_idx_reg;
                     wr_en_result <= {32{1'b1}}; 
@@ -293,7 +285,6 @@ module Cfu (
                 else if (func_id_reg[9:3] == 4) begin
                     rsp_payload_outputs_0 <= data_out_result[input_pixel_idx_reg[4:0]];
                 end
-                // Op 6 (Set Offset) also returns 0 here
                 else begin
                     rsp_payload_outputs_0 <= 0;
                 end
