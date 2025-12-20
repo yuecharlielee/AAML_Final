@@ -1,19 +1,31 @@
-// Copyright 2021 The CFU-Playground Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
 
-`include "global_buffer_bram.v"
 
+module global_buffer_bram #(parameter ADDR_BITS=8, parameter DATA_BITS=8)(
+  input                      clk,
+  input                      rst_n,
+  input                      ram_en,
+  input                      wr_en,
+  input      [ADDR_BITS-1:0] index,
+  input      [DATA_BITS-1:0] data_in,
+  output reg [DATA_BITS-1:0] data_out
+  );
+
+  parameter DEPTH = 2**ADDR_BITS;
+
+  reg [DATA_BITS-1:0] gbuff [DEPTH-1:0];
+
+  always @ (posedge clk) begin
+    if (ram_en) begin
+      if(wr_en) begin
+        gbuff[index] <= data_in;
+      end
+      else begin
+        data_out <= gbuff[index];
+      end
+    end
+  end
+
+endmodule
 
 module Cfu (
   input               cmd_valid,
@@ -28,25 +40,46 @@ module Cfu (
   input               clk
 );
 
-wire rst_n = ~reset;
+  wire rst_n = ~reset;
+  
+  localparam RESULT_ADDR_BITS = 5;
+  localparam ADDR_BITS = 14;
+  localparam DATA_BITS = 8;
+  localparam RES_DATA_BITS = 32;
+  localparam Tile_size = 32;
 
-localparam ADDR_BITS = 14;
-localparam DATA_BITS = 8;
-localparam Tile_size = 32;
+  reg [5:0] State, NextState;
+  localparam IDLE         = 6'd0,
+             WRITE_INPUT  = 6'd1, // [重要] 專屬寫入狀態
+             PROCESS      = 6'd2, 
+             COMPUTE_MUL  = 6'd3, 
+             COMPUTE_ADD  = 6'd4, 
+             WRITE_BACK   = 6'd5, 
+             RESPOND      = 6'd6;
 
-reg [5:0] State, NextState;
+  reg [Tile_size-1:0] wr_en_input;
+  reg [ADDR_BITS-1:0] index_input;
+  reg [DATA_BITS-1:0] data_in_input;
+  wire [DATA_BITS-1:0] data_out_input [31:0];
 
-localparam IDLE = 6'd0,
-           PROCESS = 6'd1,
-           RESPOND = 6'd2;
+  reg [Tile_size-1:0] wr_en_result;
+  reg [ADDR_BITS-1:0] index_result;
+  reg [RES_DATA_BITS-1:0] data_in_result [31:0];
+  wire [RES_DATA_BITS-1:0] data_out_result [31:0];
 
-reg [Tile_size-1:0] wr_en_input;
-reg [ADDR_BITS-1:0] index_input;
-reg [DATA_BITS-1:0] data_in_input;
-wire [DATA_BITS-1:0] data_out_input [31:0];
+  reg signed [31:0] filter_val_reg;
+  reg [15:0] output_ch_idx_reg;
+  reg [15:0] input_pixel_idx_reg; 
+  
+  // [新增] 鎖存功能碼，防止 PROCESS 階段訊號不穩
+  reg [9:0] func_id_reg;
 
-genvar i;
-generate
+  reg signed [31:0] product_reg [31:0];
+
+  genvar i;
+  
+  // Input Buffer (Block RAM)
+  generate
     for (i = 0; i < 32; i = i + 1) begin : gbuff_instances
         global_buffer_bram #(
             .ADDR_BITS(ADDR_BITS),
@@ -61,105 +94,205 @@ generate
             .data_out(data_out_input[i])
         );
     end
-endgenerate
+  endgenerate
 
+  // Result Buffer (Distributed RAM)
+  generate
+    for (i = 0; i < 32; i = i + 1) begin : result_ram_instances
+        (* ram_style = "distributed" *)
+        global_buffer_bram #(
+            .ADDR_BITS(RESULT_ADDR_BITS), 
+            .DATA_BITS(RES_DATA_BITS) 
+        ) gbuff_result(
+            .clk(clk),
+            .rst_n(rst_n),
+            .ram_en(1'b1),
+            .wr_en(wr_en_result[i]),
+            .index(index_result),
+            .data_in(data_in_result[i]),
+            .data_out(data_out_result[i])
+        );
+    end
+  endgenerate
 
-
-
-always @(*) begin
+  always @(*) begin
     cmd_ready = (State == IDLE);
-end
+  end
 
-reg [31:0] result_reg;
+  always @(posedge clk) begin
+    if (reset)
+      State <= IDLE;
+    else
+      State <= NextState;
+  end
 
-
-always @(posedge clk) begin
-if (reset)
-    State <= IDLE;
-else
-    State <= NextState;
-end
-
-always @(*) begin
+  // State Machine
+  always @(*) begin
     NextState = State;
     case (State)
-        IDLE: begin
-            if (cmd_valid) begin
+      IDLE: begin
+        if (cmd_valid) begin
+            // [修正] Op 0 必須去 WRITE_INPUT
+            if (cmd_payload_function_id[9:3] == 0)
+                NextState = WRITE_INPUT;
+            else
                 NextState = PROCESS;
-            end
         end
-        PROCESS: begin
+      end
+      
+      WRITE_INPUT: begin
+          NextState = RESPOND;
+      end
+
+      PROCESS: begin
+        // [修正] 使用鎖存的 func_id_reg 判斷，確保穩定
+        if (func_id_reg[9:3] == 3 || func_id_reg[9:3] == 5)
+            NextState = COMPUTE_MUL;
+        else if (func_id_reg[9:3] == 1 || func_id_reg[9:3] == 4)
+            NextState = COMPUTE_ADD; 
+        else
             NextState = RESPOND;
-        end
-        RESPOND: begin
-            if (rsp_ready)
-                NextState = IDLE;
-        end
+      end
+
+      COMPUTE_MUL: begin
+        NextState = COMPUTE_ADD;
+      end
+
+      COMPUTE_ADD: begin
+        if (func_id_reg[9:3] == 3 || func_id_reg[9:3] == 5)
+             NextState = WRITE_BACK;
+        else 
+             NextState = RESPOND;
+      end
+
+      WRITE_BACK: begin
+        NextState = RESPOND;
+      end
+
+      RESPOND: begin
+        if (rsp_ready)
+          NextState = IDLE;
+      end
     endcase
-end
+  end
 
-always @(*) begin
-    if(State == PROCESS) begin
-        if(cmd_payload_function_id[9:3] == 0) begin
-            wr_en_input = 1'b1 << cmd_payload_inputs_1[31:16];
-            index_input = cmd_payload_inputs_1[15:0];
-            data_in_input = cmd_payload_inputs_0[7:0];
-        end
-        else if(cmd_payload_function_id[9:3] == 1) begin
-            wr_en_input = 0;
-            index_input = cmd_payload_inputs_1[15:0];
-            data_in_input = 0;
-        end
-        else begin
-            wr_en_input = 0;
-            index_input = 0;
-            data_in_input = 0;
-        end
-    end
-    else if(State == RESPOND) begin
-        wr_en_input = 0;
-        data_in_input = 0;
-        if(cmd_payload_function_id[9:3] == 1) begin
-            index_input = cmd_payload_inputs_1[15:0];
-        end
-        else begin
-            index_input = 0;
-        end
-        
-    end
-    else begin
-        wr_en_input = 0;
-        index_input = 0;
-        data_in_input = 0;
-    end
-end
-
-always @(posedge clk) begin
+  integer k;
+  
+  always @(posedge clk) begin
     if (reset) begin
         rsp_payload_outputs_0 <= 0;
         rsp_valid <= 0;
+        filter_val_reg <= 0;
+        output_ch_idx_reg <= 0;
+        input_pixel_idx_reg <= 0;
+        func_id_reg <= 0;
+        
+        wr_en_input <= 0;
+        index_input <= 0;
+        data_in_input <= 0;
+        
+        wr_en_result <= 0;
+        index_result <= 0;
+        for(k=0; k<32; k=k+1) begin
+            data_in_result[k] <= 0;
+            product_reg[k] <= 0;
+        end
     end
-    else if(State == IDLE) begin
-        rsp_payload_outputs_0 <= 0;
-        rsp_valid <= 0;
-    end
-    else if (State == PROCESS) begin
-        rsp_payload_outputs_0 <= 0;
-        rsp_valid <= 0;
-    end
-    else if(State == RESPOND) begin
-        rsp_valid <= 1;
+    else begin
+        // Default Pulses
+        wr_en_input <= 0;
+        wr_en_result <= 0; 
 
-        if(cmd_payload_function_id[9:3] == 0) begin
-            rsp_payload_outputs_0 <= 0;
-        end
-        else if(cmd_payload_function_id[9:3] == 1) begin
-            rsp_payload_outputs_0 <= {24'b0, data_out_input[cmd_payload_inputs_0[15:0]][7:0]};
-        end
-        else begin
-            rsp_payload_outputs_0 <= 0;
-        end
+        case (State)
+            IDLE: begin
+                rsp_payload_outputs_0 <= 0;
+                rsp_valid <= 0;
+
+                if (cmd_valid) begin
+                    // [新增] 鎖存 Function ID
+                    func_id_reg <= cmd_payload_function_id;
+
+                    // Op 0: Write Input
+                    if (cmd_payload_function_id[9:3] == 0) begin 
+                        wr_en_input <= 1'b1 << cmd_payload_inputs_1[31:16];
+                        index_input <= cmd_payload_inputs_1[15:0];
+                        data_in_input <= cmd_payload_inputs_0[7:0];
+                    end
+                    
+                    // Op 1: Read Input
+                    else if (cmd_payload_function_id[9:3] == 1) begin
+                        index_input <= cmd_payload_inputs_1[15:0];
+                        input_pixel_idx_reg <= cmd_payload_inputs_0[15:0]; 
+                    end
+                    
+                    // Op 3 (Accum) / Op 5 (Overwrite)
+                    else if (cmd_payload_function_id[9:3] == 3 || cmd_payload_function_id[9:3] == 5) begin
+                        index_input <= cmd_payload_inputs_1[15:0];
+                        index_result <= cmd_payload_inputs_1[31:16]; 
+                        filter_val_reg <= $signed(cmd_payload_inputs_0);
+                        output_ch_idx_reg <= cmd_payload_inputs_1[31:16]; 
+                    end
+                    
+                    // Op 4: Read Result
+                    else if (cmd_payload_function_id[9:3] == 4) begin
+                        index_result <= cmd_payload_inputs_0[15:0]; 
+                        input_pixel_idx_reg <= cmd_payload_inputs_1[15:0]; 
+                    end
+                end
+            end
+            
+            WRITE_INPUT: begin
+                if(func_id_reg[9:3] == 0) begin
+                    wr_en_input <= 1'b1 << cmd_payload_inputs_1[31:16];
+                end
+            end
+
+            PROCESS: begin
+                // BRAM Read
+            end
+
+            COMPUTE_MUL: begin
+                for (k = 0; k < 32; k = k + 1) begin
+                    product_reg[k] <= $signed(data_out_input[k]) * filter_val_reg;
+                end
+            end
+
+            COMPUTE_ADD: begin
+                if (func_id_reg[9:3] == 3) begin
+                    for (k = 0; k < 32; k = k + 1) begin
+                        data_in_result[k] <= $signed(data_out_result[k]) + product_reg[k];
+                    end
+                    index_result <= output_ch_idx_reg;
+                    wr_en_result <= {32{1'b1}}; 
+                end
+                else if (func_id_reg[9:3] == 5) begin
+                    for (k = 0; k < 32; k = k + 1) begin
+                        data_in_result[k] <= product_reg[k]; 
+                    end
+                    index_result <= output_ch_idx_reg;
+                    wr_en_result <= {32{1'b1}}; 
+                end
+            end
+            
+            WRITE_BACK: begin
+                wr_en_result <= {32{1'b1}}; 
+            end
+
+            RESPOND: begin
+                rsp_valid <= 1;
+                // 使用鎖存的 func_id_reg 判斷輸出
+                if (func_id_reg[9:3] == 1) begin
+                     rsp_payload_outputs_0 <= {24'b0, data_out_input[input_pixel_idx_reg[4:0]]};
+                end
+                else if (func_id_reg[9:3] == 4) begin
+                    rsp_payload_outputs_0 <= data_out_result[input_pixel_idx_reg[4:0]];
+                end
+                else begin
+                    rsp_payload_outputs_0 <= 0;
+                end
+            end
+        endcase
     end
-end
+  end
 
 endmodule
