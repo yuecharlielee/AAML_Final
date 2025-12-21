@@ -12,7 +12,7 @@ module global_buffer_bram #(parameter ADDR_BITS=8, parameter DATA_BITS=8)(
 
   reg [DATA_BITS-1:0] gbuff [DEPTH-1:0];
 
-  always @ (negedge clk) begin
+  always @ (posedge clk) begin
     if (ram_en) begin
       if(wr_en) begin
         gbuff[index] <= data_in;

@@ -1,6 +1,9 @@
+`include "global_buffer_bram.v"
 
-
-module global_buffer_bram #(parameter ADDR_BITS=8, parameter DATA_BITS=8)(
+// ============================================================
+// Module 2: Result Buffer (Distributed/LUT RAM)
+// ============================================================
+module result_buffer_lut #(parameter ADDR_BITS=5, parameter DATA_BITS=32)(
   input                      clk,
   input                      rst_n,
   input                      ram_en,
@@ -8,25 +11,105 @@ module global_buffer_bram #(parameter ADDR_BITS=8, parameter DATA_BITS=8)(
   input      [ADDR_BITS-1:0] index,
   input      [DATA_BITS-1:0] data_in,
   output reg [DATA_BITS-1:0] data_out
-  );
-
+);
   parameter DEPTH = 2**ADDR_BITS;
-
+  (* ram_style = "distributed" *)
   reg [DATA_BITS-1:0] gbuff [DEPTH-1:0];
-
   always @ (posedge clk) begin
     if (ram_en) begin
       if(wr_en) begin
         gbuff[index] <= data_in;
       end
-      else begin
-        data_out <= gbuff[index];
-      end
+      data_out <= gbuff[index]; 
     end
   end
+endmodule
+
+// ============================================================
+// Module 3: Leaky ReLU (Pipelined + Simplified Rounding)
+// ============================================================
+module leaky_relu(
+    input              clk,
+    input              reset,
+    input              start, 
+    input  wire signed [31:0]  x,
+    
+    input  wire signed [31:0]  pos_multiplier, 
+    input  wire signed [ 5:0]  pos_shift,
+    input  wire signed [31:0]  neg_multiplier,
+    input  wire signed [ 5:0]  neg_shift,
+
+    input  wire signed [31:0]  input_offset,
+    input  wire signed [31:0]  output_offset,
+    input  wire signed [31:0]  output_min,
+    input  wire signed [31:0]  output_max,
+    
+    output reg  signed [31:0]  result
+);
+
+    // --- Stage 1: Input Adjust & Multiply ---
+    wire signed [31:0] x_adjusted = x - input_offset;
+    wire signed [31:0] selected_mult = (x_adjusted[31]) ? neg_multiplier : pos_multiplier;
+    wire signed [ 5:0] selected_shift_wire = (x_adjusted[31]) ? neg_shift : pos_shift;
+    
+    // Pipeline Registers
+    reg signed [63:0] ab_64_reg;
+    reg signed [ 5:0] shift_reg;
+    
+    reg signed [31:0] s1_x_shifted;
+    reg signed [ 5:0] s1_right_shift;
+
+    always @(posedge clk) begin
+        if (start) begin
+            // Shift logic
+            if ($signed(selected_shift_wire) > 0) begin
+                s1_x_shifted   = x_adjusted <<< selected_shift_wire;
+                s1_right_shift = 6'd0;
+            end else begin
+                s1_x_shifted   = x_adjusted;
+                s1_right_shift = -$signed(selected_shift_wire);
+            end
+
+            // Multiply
+            ab_64_reg <= $signed(s1_x_shifted) * $signed(selected_mult);
+            
+            // Pass shift info
+            shift_reg <= s1_right_shift;
+        end
+    end
+
+    // --- Stage 2: Simplified Rounding & Clamp ---
+    // 優化重點：移除 Nudge 判斷、移除 Mask/Threshold 邏輯
+    // 直接加 0x40000000 (0.5) 實現四捨五入
+    reg signed [63:0] acc_64;
+    reg signed [31:0] srdhm_result; 
+    reg signed [31:0] raw_shifted;
+    reg signed [31:0] unclamped_output;
+
+    always @(*) begin
+        // 1. Simplified Rounding (Add 0.5 in Q31)
+        acc_64 = ab_64_reg + 64'h00000000_40000000;
+
+        // 2. Doubling High Multiply (Extract high bits)
+        srdhm_result = acc_64[62:31];
+
+        // 3. Simple Right Shift
+        raw_shifted = srdhm_result >>> shift_reg;
+
+        // 4. Output Offset
+        unclamped_output = raw_shifted + output_offset;
+
+        // 5. Clamp
+        if (unclamped_output > output_max) result = output_max;
+        else if (unclamped_output < output_min) result = output_min;
+        else result = unclamped_output;
+    end
 
 endmodule
 
+// ============================================================
+// Module 4: CFU Top Level
+// ============================================================
 module Cfu (
   input               cmd_valid,
   output reg          cmd_ready,
@@ -52,11 +135,12 @@ module Cfu (
   localparam IDLE         = 6'd0,
              WRITE_INPUT  = 6'd1, 
              PROCESS      = 6'd2, 
-             COMPUTE_MUL  = 6'd3, 
-             COMPUTE_ADD  = 6'd4, 
+             COMPUTE_MUL  = 6'd3, // Pipeline Stage 1
+             COMPUTE_ADD  = 6'd4, // Pipeline Stage 2
              WRITE_BACK   = 6'd5, 
              RESPOND      = 6'd6;
 
+  // Buffer Signals
   reg [Tile_size-1:0] wr_en_input;
   reg [ADDR_BITS-1:0] index_input;
   reg [DATA_BITS-1:0] data_in_input;
@@ -77,51 +161,57 @@ module Cfu (
   reg signed [31:0] product_reg [31:0];
   reg signed [31:0] offset_product_reg;
 
-  genvar i;
+  // LReLU Params
+  reg signed [31:0] lrelu_pos_mult, lrelu_neg_mult;
+  reg signed [5:0]  lrelu_pos_shift, lrelu_neg_shift;
+  reg signed [31:0] lrelu_in_offset, lrelu_out_offset;
+  reg signed [31:0] lrelu_out_min, lrelu_out_max;
   
+  // [新增] 專門鎖存 Op 10 的輸入數據
+  reg signed [31:0] lrelu_input_reg;
+  
+  wire signed [31:0] lrelu_result;
+  reg lrelu_start;
+
+  genvar i;
+
+  // Buffers
   generate
     for (i = 0; i < 32; i = i + 1) begin : gbuff_instances
-        global_buffer_bram #(
-            .ADDR_BITS(ADDR_BITS),
-            .DATA_BITS(DATA_BITS)
-        ) gbuff_input(
-            .clk(clk),
-            .rst_n(rst_n),
-            .ram_en(1'b1),
-            .wr_en(wr_en_input[i]),
-            .index(index_input),
-            .data_in(data_in_input),
-            .data_out(data_out_input[i])
-        );
+        global_buffer_bram #(.ADDR_BITS(ADDR_BITS),.DATA_BITS(DATA_BITS)) gbuff_input(
+            .clk(clk), .rst_n(rst_n), .ram_en(1'b1), .wr_en(wr_en_input[i]),
+            .index(index_input), .data_in(data_in_input), .data_out(data_out_input[i]));
     end
   endgenerate
 
   generate
     for (i = 0; i < 32; i = i + 1) begin : result_ram_instances
-        global_buffer_bram #(
-            .ADDR_BITS(RESULT_ADDR_BITS), 
-            .DATA_BITS(RES_DATA_BITS) 
-        ) gbuff_result(
-            .clk(clk),
-            .rst_n(rst_n),
-            .ram_en(1'b1),
-            .wr_en(wr_en_result[i]),
-            .index(index_result[RESULT_ADDR_BITS-1:0]), 
-            .data_in(data_in_result[i]),
-            .data_out(data_out_result[i])
-        );
+        result_buffer_lut #(.ADDR_BITS(RESULT_ADDR_BITS), .DATA_BITS(RES_DATA_BITS)) gbuff_result(
+            .clk(clk), .rst_n(rst_n), .ram_en(1'b1), .wr_en(wr_en_result[i]),
+            .index(index_result[RESULT_ADDR_BITS-1:0]), .data_in(data_in_result[i]), .data_out(data_out_result[i]));
     end
   endgenerate
+
+  // Leaky ReLU Instance
+  leaky_relu lrelu_inst (
+      .clk(clk),
+      .reset(reset),
+      .start(lrelu_start), 
+      .x(lrelu_input_reg), // [修正] 使用鎖存後的輸入
+      .pos_multiplier(lrelu_pos_mult), .pos_shift(lrelu_pos_shift),
+      .neg_multiplier(lrelu_neg_mult), .neg_shift(lrelu_neg_shift),
+      .input_offset(lrelu_in_offset), .output_offset(lrelu_out_offset),
+      .output_min(lrelu_out_min), .output_max(lrelu_out_max),
+      .result(lrelu_result)
+  );
 
   always @(*) begin
     cmd_ready = (State == IDLE);
   end
 
   always @(posedge clk) begin
-    if (reset)
-      State <= IDLE;
-    else
-      State <= NextState;
+    if (reset) State <= IDLE;
+    else State <= NextState;
   end
 
   // State Machine
@@ -132,19 +222,17 @@ module Cfu (
         if (cmd_valid) begin
             if (cmd_payload_function_id[9:3] == 0)
                 NextState = WRITE_INPUT;
-            else if (cmd_payload_function_id[9:3] == 6) 
-                NextState = RESPOND;
+            else if (cmd_payload_function_id[9:3] == 6 || (cmd_payload_function_id[9:3] >= 7 && cmd_payload_function_id[9:3] != 10)) 
+                NextState = RESPOND; 
             else
-                NextState = PROCESS;
+                NextState = PROCESS; 
         end
       end
       
-      WRITE_INPUT: begin
-          NextState = IDLE;
-      end
+      WRITE_INPUT: NextState = IDLE;
 
       PROCESS: begin
-        if (func_id_reg[9:3] == 3 || func_id_reg[9:3] == 5)
+        if (func_id_reg[9:3] == 3 || func_id_reg[9:3] == 5 || func_id_reg[9:3] == 10)
             NextState = COMPUTE_MUL;
         else if (func_id_reg[9:3] == 1 || func_id_reg[9:3] == 4)
             NextState = COMPUTE_ADD; 
@@ -152,25 +240,17 @@ module Cfu (
             NextState = RESPOND;
       end
 
-      COMPUTE_MUL: begin
-        NextState = COMPUTE_ADD;
-      end
+      COMPUTE_MUL: NextState = COMPUTE_ADD;
 
       COMPUTE_ADD: begin
         if (func_id_reg[9:3] == 3 || func_id_reg[9:3] == 5)
              NextState = WRITE_BACK;
         else 
-             NextState = RESPOND;
+             NextState = RESPOND; 
       end
 
-      WRITE_BACK: begin
-        NextState = RESPOND;
-      end
-
-      RESPOND: begin
-        if (rsp_ready)
-          NextState = IDLE;
-      end
+      WRITE_BACK: NextState = RESPOND;
+      RESPOND:    if (rsp_ready) NextState = IDLE;
     endcase
   end
 
@@ -185,11 +265,9 @@ module Cfu (
         input_pixel_idx_reg <= 0;
         func_id_reg <= 0;
         input_offset_reg <= 0;
-        
         wr_en_input <= 0;
         index_input <= 0;
         data_in_input <= 0;
-        
         wr_en_result <= 0;
         index_result <= 0;
         for(k=0; k<32; k=k+1) begin
@@ -197,11 +275,18 @@ module Cfu (
             product_reg[k] <= 0;
         end
         offset_product_reg <= 0;
+        lrelu_pos_mult <= 0; lrelu_pos_shift <= 0;
+        lrelu_neg_mult <= 0; lrelu_neg_shift <= 0;
+        lrelu_in_offset <= 0; lrelu_out_offset <= 0;
+        lrelu_out_min <= 0; lrelu_out_max <= 0;
+        lrelu_start <= 0;
+        lrelu_input_reg <= 0;
     end
     else begin
         wr_en_input <= 0;
         wr_en_result <= 0; 
         rsp_valid <= 0;
+        lrelu_start <= 0;
 
         case (State)
             IDLE: begin
@@ -233,9 +318,30 @@ module Cfu (
                         index_result <= cmd_payload_inputs_0[15:0]; 
                         input_pixel_idx_reg <= cmd_payload_inputs_1[15:0]; 
                     end
-                    // Op 6: Set Offset
+                    // Op 6: Set Input Offset
                     else if (cmd_payload_function_id[9:3] == 6) begin
                         input_offset_reg <= $signed(cmd_payload_inputs_0);
+                    end
+                    // Op 7~11: Leaky ReLU Params
+                    else if (cmd_payload_function_id[9:3] == 7) begin
+                        lrelu_pos_mult <= cmd_payload_inputs_0;
+                        lrelu_pos_shift <= cmd_payload_inputs_1[5:0];
+                    end
+                    else if (cmd_payload_function_id[9:3] == 8) begin
+                        lrelu_neg_mult <= cmd_payload_inputs_0;
+                        lrelu_neg_shift <= cmd_payload_inputs_1[5:0];
+                    end
+                    else if (cmd_payload_function_id[9:3] == 9) begin
+                        lrelu_in_offset <= cmd_payload_inputs_0;
+                        lrelu_out_offset <= cmd_payload_inputs_1;
+                    end
+                    else if (cmd_payload_function_id[9:3] == 11) begin
+                        lrelu_out_min <= cmd_payload_inputs_0;
+                        lrelu_out_max <= cmd_payload_inputs_1;
+                    end
+                    // Op 10: Run LReLU - Latch input data
+                    else if (cmd_payload_function_id[9:3] == 10) begin
+                        lrelu_input_reg <= $signed(cmd_payload_inputs_0);
                     end
                 end
             end
@@ -248,15 +354,20 @@ module Cfu (
             end
 
             COMPUTE_MUL: begin
-                // Pipeline Stage 1: Parallel Multiplication
+                // --- Conv Logic ---
                 for (k = 0; k < 32; k = k + 1) begin
                     product_reg[k] <= $signed(data_out_input[k]) * filter_val_reg;
                 end
                 offset_product_reg <= input_offset_reg * filter_val_reg;
+
+                // --- LReLU Logic ---
+                if (func_id_reg[9:3] == 10) begin
+                    lrelu_start <= 1; 
+                end
             end
 
             COMPUTE_ADD: begin
-                // Pipeline Stage 2: Add Results & Setup Write
+                // --- Conv Logic ---
                 if (func_id_reg[9:3] == 3) begin
                     for (k = 0; k < 32; k = k + 1) begin
                         data_in_result[k] <= $signed(data_out_result[k]) + product_reg[k] + offset_product_reg;
@@ -278,19 +389,12 @@ module Cfu (
 
             RESPOND: begin
                 rsp_valid <= 1;
-
-                if (func_id_reg[9:3] == 1) begin
-                     rsp_payload_outputs_0 <= {24'b0, data_out_input[input_pixel_idx_reg[4:0]]};
-                end
-                else if (func_id_reg[9:3] == 4) begin
-                    rsp_payload_outputs_0 <= data_out_result[input_pixel_idx_reg[4:0]];
-                end
-                else begin
-                    rsp_payload_outputs_0 <= 0;
-                end
+                if (func_id_reg[9:3] == 1)      rsp_payload_outputs_0 <= {24'b0, data_out_input[input_pixel_idx_reg[4:0]]};
+                else if (func_id_reg[9:3] == 4) rsp_payload_outputs_0 <= data_out_result[input_pixel_idx_reg[4:0]];
+                else if (func_id_reg[9:3] == 10) rsp_payload_outputs_0 <= lrelu_result;
+                else                            rsp_payload_outputs_0 <= 0;
             end
         endcase
     end
   end
-
 endmodule
