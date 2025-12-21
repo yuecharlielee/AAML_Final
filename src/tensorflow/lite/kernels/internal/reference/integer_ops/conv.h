@@ -90,9 +90,9 @@ inline void ConvPerChannel(
 
   int M = output_depth;
   int N = output_height * output_width;
-  int K = filter_height * filter_width * filter_input_depth;
+  // int K = filter_height * filter_width * filter_input_depth;
 
-  printf("M=%d, N=%d, K=%d\n", M, N, K);
+  // printf("M=%d, N=%d, K=%d\n", M, N, K);
 
   const int TILE_SIZE = 32;
 
