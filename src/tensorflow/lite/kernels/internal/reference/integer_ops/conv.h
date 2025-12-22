@@ -106,7 +106,7 @@ inline void ConvPerChannel(
 
   int32_t tile_acc[32][32];
 
-  cfu_op0(6, input_offset, 0);  
+  cfu_op0(2, input_offset, 0);  
 
   for (int batch = 0; batch < batches; ++batch) {
     for (int n_base = 0; n_base < N; n_base += TILE_SIZE) {
