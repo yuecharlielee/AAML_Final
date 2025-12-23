@@ -9,10 +9,11 @@
 #include "test_data/test_output.h"  
 
 #include "playground_util/console.h"
-
+#include "perf.h"
 static void wav2letter_pruned_init(void) {
   tflite_load_model(wav2letter_pruned_int8_tflite, wav2letter_pruned_int8_tflite_len);
 }
+
 
 
 
@@ -45,6 +46,8 @@ static void do_golden_tests() {
   if (passed) {
     printf("\nOK   Golden tests passed!\n");
   }
+
+  perf_print_all_counters();
 }
 
 static struct Menu MENU = {
@@ -60,3 +63,5 @@ void wav2letter_pruned_menu() {
   wav2letter_pruned_init();
   menu_run(&MENU);
 }
+
+

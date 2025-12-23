@@ -35,12 +35,17 @@ module result_buffer_lut #(parameter ADDR_BITS=5, parameter DATA_BITS=32)(
   parameter DEPTH = 2**ADDR_BITS;
   (* ram_style = "distributed" *)
   reg [DATA_BITS-1:0] gbuff [DEPTH-1:0];
-
+  integer i;
   always @ (posedge clk)
   begin
     if (ram_en)
     begin
-      if(wr_en)
+      if (!rst_n) begin 
+        for (i = 0; i < DEPTH; i = i + 1) begin
+          gbuff[i] <= 0;
+        end
+      end
+      else if(wr_en)
       begin
         gbuff[index] <= data_in;
       end
@@ -177,6 +182,9 @@ module Cfu (
   wire signed [31:0] lrelu_result;
   reg lrelu_start;
 
+  wire clear_lut_buffer = (cmd_payload_function_id[9:3] == 16) && cmd_valid;
+  wire lut_buffer_rst_n = ~clear_lut_buffer;
+
   genvar i;
 
   generate
@@ -192,7 +200,7 @@ module Cfu (
     for (i = 0; i < TILE_SIZE; i = i + 1)
     begin : result_ram_instances
       result_buffer_lut #(.ADDR_BITS(RESULT_ADDR_BITS), .DATA_BITS(RES_DATA_BITS)) gbuff_result(
-                          .clk(clk), .rst_n(rst_n), .ram_en(1'b1), .wr_en(wr_en_result[i]),
+                          .clk(clk), .rst_n(lut_buffer_rst_n), .ram_en(1'b1), .wr_en(wr_en_result[i]),
                           .index(index_result[RESULT_ADDR_BITS-1:0]), .data_in(data_in_result[i]), .data_out(data_out_result[i]));
     end
   endgenerate
@@ -228,7 +236,7 @@ module Cfu (
       begin
         if (cmd_valid)
         begin
-          if (cmd_payload_function_id[9:3] == 0)
+          if (cmd_payload_function_id[9:3] == 0 || (cmd_payload_function_id[9:3] == 3 && cmd_payload_inputs_0 == 0))
             NextState = IDLE;
           else if (cmd_payload_function_id[9:3] == 2 || (cmd_payload_function_id[9:3] >= 6 && cmd_payload_function_id[9:3] != 9))
             NextState = IDLE;
@@ -317,12 +325,15 @@ module Cfu (
               data_in_input <= cmd_payload_inputs_0[7:0];
               rsp_valid <= 1;
             end
+            else if (cmd_payload_function_id[9:3] == 3 && cmd_payload_inputs_0 == 0) begin 
+              rsp_valid <= 1;
+            end
             else if (cmd_payload_function_id[9:3] == 1)
             begin
               index_input <= cmd_payload_inputs_1[15:0];
               input_pixel_idx_reg <= cmd_payload_inputs_0[15:0];
             end
-            else if (cmd_payload_function_id[9:3] == 3 || cmd_payload_function_id[9:3] == 5)
+            else if ((cmd_payload_function_id[9:3] == 3 && cmd_payload_inputs_0 != 0) || cmd_payload_function_id[9:3] == 5)
             begin
               index_input <= cmd_payload_inputs_1[15:0];
               index_result <= cmd_payload_inputs_1[31:16];
@@ -365,6 +376,9 @@ module Cfu (
             begin
               lrelu_out_min <= cmd_payload_inputs_0;
               lrelu_out_max <= cmd_payload_inputs_1;
+              rsp_valid <= 1;
+            end else if (cmd_payload_function_id[9:3] == 16)
+            begin 
               rsp_valid <= 1;
             end
           end
