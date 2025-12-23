@@ -27,7 +27,7 @@ in th_results is copied from the original in EEMBC.
 #include <stdio.h>
 #include <stdint.h>
 
-#include "../../wav2letter/model/wav2letter_pruned_int8.h" 
+#include "../../../wav2letter/model/wav2letter_pruned_int8.h" 
 
 #include "menu.h"
 #include "../../tflite.h"

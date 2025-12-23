@@ -150,12 +150,12 @@ namespace reference_integer_ops {
                                 // Fast path: point inside image - load data then send to CFU
                                 for (; in_channel < depth_limit; in_channel += UNROLL) {
                                     int base_offset = Offset(input_shape, batch, in_y, in_x, in_channel + group * filter_input_depth);
-                                    for (int u = 0; u < UNROLL; ++u) {
-                                        im2col_buf[j][k+u] = input_data[base_offset + u];
-                                    }
+                                    // for (int u = 0; u < UNROLL; ++u) {
+                                    //     im2col_buf[j][k+u] = input_data[base_offset + u];
+                                    // }
                                     
                                     for (int u = 0; u < UNROLL; ++u) {
-                                        cfu_op0(0, im2col_buf[j][k+u], (j << 16) | (k+u));
+                                        cfu_op0(0, input_data[base_offset + u], (j << 16) | (k+u));
                                     }
                                     
                                     k += UNROLL;
